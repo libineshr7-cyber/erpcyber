@@ -7,6 +7,7 @@ import { success, paginated } from '../utils/response';
 import { handleWhatsAppWebhook } from '../services/whatsappService';
 import { config } from '../config/env';
 import { safeCompare } from '../utils/crypto';
+import { createAuditLog } from '../middleware/auditLog';
 
 const router = Router();
 
@@ -24,9 +25,7 @@ router.get('/whatsapp/webhook', (req: Request, res: Response): void => {
 });
 
 router.post('/whatsapp/webhook', async (req: Request, res: Response): Promise<void> => {
-  // Acknowledge immediately (Meta requires fast response)
   res.status(200).json({ status: 'ok' });
-  // Process async
   await handleWhatsAppWebhook(req.body as Record<string, unknown>);
 });
 
@@ -40,11 +39,18 @@ router.get('/staff', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, 
 
 router.post('/staff', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
   const result = await staffService.createStaff(req.body, req.user!.userId);
+  await createAuditLog(req, { action: 'STAFF_CREATED', resourceType: 'staff', resourceId: result.staff_id });
   success(res, result, 'Staff created');
 });
 
 router.get('/staff/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
   success(res, await staffService.getStaffById(req.params.id));
+});
+
+router.delete('/staff/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  await staffService.deleteStaff(req.params.id);
+  await createAuditLog(req, { action: 'STAFF_DELETED', resourceType: 'staff', resourceId: req.params.id });
+  success(res, null, 'Staff member deleted/deactivated');
 });
 
 router.get('/staff/:id/assignments', async (req: Request, res: Response): Promise<void> => {
@@ -62,7 +68,6 @@ router.delete('/staff/:id/assignments/:aid', authorizeRoles('HOD', 'SUPER_ADMIN'
 });
 
 // ─── Shared routes (Staff + HOD) ─────────────────────────────────────────────
-// Subjects — staff can read, HOD writes
 router.get('/subjects', async (req: Request, res: Response): Promise<void> => {
   const result = await academicService.getSubjects(req.query as Record<string, unknown>);
   paginated(res, result.subjects, result.total, result.page, result.limit);
@@ -80,7 +85,6 @@ router.get('/announcements', async (_req: Request, res: Response): Promise<void>
   success(res, await academicService.getAnnouncements());
 });
 
-// Attendance
 router.post('/attendance', async (req: Request, res: Response): Promise<void> => {
   const { entries } = req.body as { entries: Parameters<typeof academicService.enterAttendance>[0] };
   await academicService.enterAttendance(entries, req.user!.userId);

@@ -4,14 +4,50 @@ import { authorizeRoles } from '../middleware/authorize';
 import * as academicService from '../services/academicService';
 import * as securityService from '../services/securityService';
 import * as authService from '../services/authService';
-import { success, paginated } from '../utils/response';
+import { success, paginated, error } from '../utils/response';
 import { createAuditLog } from '../middleware/auditLog';
 import { z } from 'zod';
 import { validate } from '../middleware/validateRequest';
+import pool from '../config/database';
 
 const router = Router();
 router.use(authenticate);
 router.use(authorizeRoles('HOD', 'SUPER_ADMIN'));
+
+// ─── HOD User Management (Create & Delete HOD/Admin Users) ───────────────────
+router.post('/users', validate(z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email(),
+  role: z.enum(['HOD', 'SUPER_ADMIN']),
+})), async (req: Request, res: Response): Promise<void> => {
+  const { username, email, role } = req.body as { username: string; email: string; role: 'HOD' | 'SUPER_ADMIN' };
+
+  const existing = await pool.query('SELECT user_id FROM users WHERE username = $1', [username.toLowerCase()]);
+  if (existing.rows.length > 0) { error(res, 'Username already exists', 409); return; }
+
+  const defaultPasswordHash = await authService.hashPassword('123');
+
+  const result = await pool.query(
+    `INSERT INTO users (email, username, password_hash, role)
+     VALUES ($1, $2, $3, $4)
+     RETURNING user_id, username, email, role, created_at`,
+    [email, username.toLowerCase(), defaultPasswordHash, role]
+  );
+
+  await createAuditLog(req, { action: 'HOD_USER_CREATED', resourceType: 'user', resourceId: result.rows[0].user_id });
+  success(res, { ...result.rows[0], defaultPassword: '123' }, 'HOD account created with default password 123');
+});
+
+router.delete('/users/:id', async (req: Request, res: Response): Promise<void> => {
+  if (req.params.id === req.user!.userId) {
+    error(res, 'You cannot delete your own account', 400);
+    return;
+  }
+
+  await pool.query("UPDATE users SET account_status = 'INACTIVE' WHERE user_id = $1", [req.params.id]);
+  await createAuditLog(req, { action: 'HOD_USER_DELETED', resourceType: 'user', resourceId: req.params.id });
+  success(res, null, 'HOD account deleted/deactivated');
+});
 
 // ─── Academic Years ───────────────────────────────────────────────────────────
 router.get('/academic-years', async (_req: Request, res: Response): Promise<void> => {
@@ -125,7 +161,6 @@ router.put('/security/events/:id/resolve', async (req: Request, res: Response): 
 });
 
 router.get('/security/sessions', async (req: Request, res: Response): Promise<void> => {
-  // HOD can see sessions for any user
   const userId = (req.query.userId as string) || req.user!.userId;
   success(res, await authService.getActiveSessions(userId));
 });
@@ -142,5 +177,4 @@ router.get('/audit-logs', async (req: Request, res: Response): Promise<void> => 
   paginated(res, result.logs, result.total, result.page, result.limit);
 });
 
-// ─── WhatsApp Webhook ─────────────────────────────────────────────────────────
 export default router;

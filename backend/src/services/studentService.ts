@@ -4,8 +4,6 @@ import { fieldEncrypt, fieldDecrypt, maskPhone } from '../utils/crypto';
 import { parsePagination } from '../utils/pagination';
 import { AppErr } from '../middleware/errorHandler';
 
-// ─── Student Creation ─────────────────────────────────────────────────────────
-
 export interface CreateStudentInput {
   registerNumber: string;
   name: string;
@@ -26,7 +24,6 @@ export interface CreateStudentInput {
 }
 
 export async function createStudent(input: CreateStudentInput, createdByUserId: string) {
-  // Check uniqueness
   const existing = await pool.query(
     'SELECT student_id FROM students WHERE register_number = $1',
     [input.registerNumber]
@@ -39,9 +36,8 @@ export async function createStudent(input: CreateStudentInput, createdByUserId: 
   try {
     await client.query('BEGIN');
 
-    // Create user account for student
     const username = input.registerNumber.toLowerCase();
-    const defaultPassword = await hashPassword(`${input.registerNumber}@Change123`);
+    const defaultPassword = await hashPassword('123'); // Default password 123 as requested
 
     const userResult = await client.query(
       `INSERT INTO users (email, username, password_hash, role)
@@ -51,7 +47,6 @@ export async function createStudent(input: CreateStudentInput, createdByUserId: 
     );
     const userId = userResult.rows[0].user_id;
 
-    // Encrypt parent WhatsApp if provided
     const encryptedWhatsapp = input.parentWhatsapp
       ? fieldEncrypt(input.parentWhatsapp)
       : null;
@@ -73,7 +68,7 @@ export async function createStudent(input: CreateStudentInput, createdByUserId: 
     );
 
     await client.query('COMMIT');
-    return { ...studentResult.rows[0], username, temporaryPassword: `${input.registerNumber}@Change123` };
+    return { ...studentResult.rows[0], username, temporaryPassword: '123' };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -81,8 +76,6 @@ export async function createStudent(input: CreateStudentInput, createdByUserId: 
     client.release();
   }
 }
-
-// ─── Get Students (paginated, filtered) ──────────────────────────────────────
 
 export async function getStudents(query: Record<string, unknown>) {
   const { page, limit, offset } = parsePagination(query);
@@ -133,9 +126,7 @@ export async function getStudents(query: Record<string, unknown>) {
   return { students: rows.rows, total: parseInt(countResult.rows[0].count), page, limit };
 }
 
-// ─── Get Student By ID ────────────────────────────────────────────────────────
-
-export async function getStudentById(studentId: string, includePhone = false) {
+export async function getStudentById(studentId: string) {
   const result = await pool.query(
     `SELECT s.student_id, s.register_number, s.name, s.email, s.programme, s.batch,
             s.admission_year, s.current_year, s.current_semester, s.account_status,
@@ -154,7 +145,6 @@ export async function getStudentById(studentId: string, includePhone = false) {
 
   const student = result.rows[0];
 
-  // Handle parent phone — decrypt and mask, never expose plaintext except to authorized backend ops
   if (student.parent_whatsapp_encrypted) {
     const decrypted = fieldDecrypt(Buffer.from(student.parent_whatsapp_encrypted));
     student.parent_whatsapp_masked = maskPhone(decrypted);
@@ -162,13 +152,9 @@ export async function getStudentById(studentId: string, includePhone = false) {
     student.parent_whatsapp_masked = null;
   }
 
-  // ALWAYS remove encrypted field from response
   delete student.parent_whatsapp_encrypted;
-
   return student;
 }
-
-// ─── Update Student ───────────────────────────────────────────────────────────
 
 export async function updateStudent(studentId: string, input: Partial<CreateStudentInput>) {
   const updates: string[] = [];
@@ -205,16 +191,17 @@ export async function updateStudent(studentId: string, input: Partial<CreateStud
   );
 }
 
-// ─── Soft Delete ──────────────────────────────────────────────────────────────
-
 export async function softDeleteStudent(studentId: string) {
+  // Soft delete student and deactivate user account
+  const student = await pool.query('SELECT user_id FROM students WHERE student_id = $1', [studentId]);
+  if (student.rows[0]?.user_id) {
+    await pool.query("UPDATE users SET account_status = 'INACTIVE' WHERE user_id = $1", [student.rows[0].user_id]);
+  }
   await pool.query(
     `UPDATE students SET account_status = 'ARCHIVED', updated_at = NOW() WHERE student_id = $1`,
     [studentId]
   );
 }
-
-// ─── Subject Enrollment ───────────────────────────────────────────────────────
 
 export async function enrollStudentInSubjects(
   studentId: string,
@@ -266,8 +253,6 @@ export async function getStudentSubjects(studentId: string, academicYearId?: str
   return result.rows;
 }
 
-// ─── Student's Marks (for student portal — approved only) ─────────────────────
-
 export async function getStudentMarks(studentId: string, academicYearId?: string, examId?: string) {
   const conditions = ['m.student_id = $1', 'm.status = \'APPROVED\''];
   const params: unknown[] = [studentId];
@@ -297,8 +282,6 @@ export async function getStudentMarks(studentId: string, academicYearId?: string
   );
   return result.rows;
 }
-
-// ─── Attendance Summary ────────────────────────────────────────────────────────
 
 export async function getStudentAttendanceSummary(studentId: string, academicYearId?: string) {
   const conditions = ['a.student_id = $1'];

@@ -1,16 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../middleware/authenticate';
+import { authorizeRoles } from '../middleware/authorize';
 import { validate } from '../middleware/validateRequest';
 import { loginLimiter, mfaLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
 import { createAuditLog } from '../middleware/auditLog';
 import * as authService from '../services/authService';
 import { success, error, unauthorized } from '../utils/response';
+import pool from '../config/database';
 
 const router = Router();
 
 const loginSchema = z.object({
-  username: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_]+$/, 'Only letters, numbers and underscores'),
+  username: z.string().min(1).max(100),
   password: z.string().min(1).max(128),
 });
 
@@ -22,11 +24,7 @@ const passwordResetRequestSchema = z.object({
 
 const passwordResetSchema = z.object({
   token: z.string().min(32),
-  newPassword: z.string().min(8).max(128)
-    .regex(/[A-Z]/, 'Must contain uppercase')
-    .regex(/[a-z]/, 'Must contain lowercase')
-    .regex(/\d/, 'Must contain number')
-    .regex(/[^A-Za-z0-9]/, 'Must contain special character'),
+  newPassword: z.string().min(1).max(128),
 });
 
 // POST /api/auth/login
@@ -74,6 +72,34 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req: Request, 
   });
 });
 
+// POST /api/auth/admin-reset-password (HOD & Staff can reset any student or staff password)
+router.post('/admin-reset-password', authenticate, authorizeRoles('HOD', 'SUPER_ADMIN', 'STAFF'), async (req: Request, res: Response): Promise<void> => {
+  const { targetUsername, newPassword = '123' } = req.body as { targetUsername: string; newPassword?: string };
+
+  if (!targetUsername) { error(res, 'Target username is required', 400); return; }
+
+  const targetUser = await pool.query('SELECT user_id, role FROM users WHERE username = $1', [targetUsername.toLowerCase()]);
+  if (targetUser.rows.length === 0) { error(res, 'User not found', 404); return; }
+
+  const userToReset = targetUser.rows[0];
+
+  // Staff can only reset passwords for Students. HOD can reset for Staff & Students & HODs.
+  if (req.user!.role === 'STAFF' && userToReset.role !== 'STUDENT') {
+    error(res, 'Staff members can only reset Student passwords', 403);
+    return;
+  }
+
+  const hashedNewPassword = await authService.hashPassword(newPassword);
+
+  await pool.query(
+    'UPDATE users SET password_hash = $1, password_changed_at = NOW(), failed_login_attempts = 0, locked_until = NULL WHERE user_id = $2',
+    [hashedNewPassword, userToReset.user_id]
+  );
+
+  await createAuditLog(req, { action: 'PASSWORD_RESET_COMPLETED', metadata: { targetUsername, resetBy: req.user!.username } });
+  success(res, { targetUsername, newPassword }, `Password for ${targetUsername} has been reset to "${newPassword}"`);
+});
+
 // POST /api/auth/mfa/validate
 router.post('/mfa/validate', mfaLimiter, async (req: Request, res: Response): Promise<void> => {
   if (!req.session?.userId) { unauthorized(res); return; }
@@ -112,7 +138,6 @@ router.post('/mfa/enable', authenticate, validate(mfaTokenSchema), async (req: R
 router.get('/me', authenticate, async (req: Request, res: Response): Promise<void> => {
   const user = await authService.getCurrentUser(req.user!.userId);
   if (!user) { unauthorized(res); return; }
-  // Never return password_hash
   const { password_hash: _, ...safeUser } = user as Record<string, unknown> & { password_hash: string };
   success(res, safeUser);
 });
@@ -152,12 +177,7 @@ router.delete('/sessions/:sid', authenticate, async (req: Request, res: Response
 router.post('/password/reset-request', passwordResetLimiter, validate(passwordResetRequestSchema), async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body as { email: string };
   const token = await authService.requestPasswordReset(email);
-  // Always return success to prevent email enumeration
   success(res, null, 'If that email is registered, a reset link has been sent.');
-  // In production: send token via email
-  if (token && process.env.NODE_ENV === 'development') {
-    console.log(`[DEV] Password reset token for ${email}: ${token}`);
-  }
 });
 
 // POST /api/auth/password/reset

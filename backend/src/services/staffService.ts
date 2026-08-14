@@ -25,7 +25,7 @@ export async function createStaff(input: CreateStaffInput, createdByUserId: stri
     await client.query('BEGIN');
 
     const username = input.employeeId.toLowerCase();
-    const defaultPassword = await hashPassword(`${input.employeeId}@Change123`);
+    const defaultPassword = await hashPassword('123'); // Default password 123 as requested
 
     const userResult = await client.query(
       `INSERT INTO users (email, username, password_hash, role)
@@ -44,13 +44,21 @@ export async function createStaff(input: CreateStaffInput, createdByUserId: stri
     );
 
     await client.query('COMMIT');
-    return { ...staffResult.rows[0], username, temporaryPassword: `${input.employeeId}@Change123` };
+    return { ...staffResult.rows[0], username, temporaryPassword: '123' };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
   }
+}
+
+export async function deleteStaff(staffId: string) {
+  const staff = await pool.query('SELECT user_id FROM staff WHERE staff_id = $1', [staffId]);
+  if (staff.rows[0]?.user_id) {
+    await pool.query("UPDATE users SET account_status = 'INACTIVE' WHERE user_id = $1", [staff.rows[0].user_id]);
+  }
+  await pool.query("UPDATE staff SET account_status = 'ARCHIVED', updated_at = NOW() WHERE staff_id = $1", [staffId]);
 }
 
 export async function getStaff(query: Record<string, unknown>) {
