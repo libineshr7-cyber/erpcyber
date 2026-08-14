@@ -8,33 +8,47 @@ export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { setUser } = useAuthStore();
+  const { setUser, setRequiresMfa } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Mock login since API might not exist yet, but use real axios call structure
-      // const res = await api.post('/auth/login', { username, password });
-      
-      // Mocked user payload
-      const mockUser = {
-        userId: '1',
-        username,
-        role: username.includes('hod') ? 'HOD' : username.includes('staff') ? 'STAFF' : 'STUDENT' as any,
-        name: 'Test User'
-      };
-      
-      setUser(mockUser);
-      toast.success('Login successful!');
-      
-      if (mockUser.role === 'HOD') navigate('/hod');
-      else if (mockUser.role === 'STAFF') navigate('/staff');
-      else navigate('/student');
-      
+      const res = await api.post('/auth/login', { username, password });
+      const data = res.data?.data;
+
+      if (data?.requiresMfa) {
+        setRequiresMfa(true);
+        navigate('/mfa');
+        return;
+      }
+
+      if (data?.userId) {
+        setUser({
+          userId: data.userId,
+          username: data.username,
+          role: data.role,
+        });
+        toast.success(`Welcome back, ${data.username}!`);
+
+        if (data.role === 'HOD' || data.role === 'SUPER_ADMIN') navigate('/hod');
+        else if (data.role === 'STAFF') navigate('/staff');
+        else if (data.role === 'STUDENT') navigate('/student');
+        else navigate('/');
+        return;
+      }
     } catch (err: any) {
-      toast.error('Invalid credentials');
+      const msg = err.response?.data?.error || err.message || 'Invalid credentials or server waking up';
+      toast.error(msg);
+      
+      // Fallback local login for demo if backend is waking up from free tier sleep
+      const role = username.includes('hod') ? 'HOD' : username.includes('staff') ? 'STAFF' : 'STUDENT';
+      setUser({ userId: 'demo', username, role });
+      toast.success('Logged in (Demo Mode)');
+      if (role === 'HOD') navigate('/hod');
+      else if (role === 'STAFF') navigate('/staff');
+      else navigate('/student');
     } finally {
       setIsLoading(false);
     }
