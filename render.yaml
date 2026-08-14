@@ -1,0 +1,68 @@
+services:
+  # ── Backend Web Service ──────────────────────────────────────────────────
+  - type: web
+    name: erp-backend
+    env: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run migrate && npm run seed && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: erp-frontend
+          property: url
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: erp-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: erp-postgres
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: erp-postgres
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: erp-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: erp-postgres
+          property: password
+      - key: POSTGRES_SSL
+        value: "true"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+      - key: FIELD_ENCRYPTION_KEY
+        generateValue: true
+
+  # ── Frontend Static Site ──────────────────────────────────────────────────
+  - type: web
+    name: erp-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  # ── Managed PostgreSQL Database ──────────────────────────────────────────
+  - name: erp-postgres
+    region: singapore
+    plan: free
+    databaseName: erp_db
+    user: erp_user

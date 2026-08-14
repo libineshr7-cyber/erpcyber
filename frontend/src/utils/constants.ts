@@ -1,0 +1,15 @@
+export const API_URL = '/api';
+
+export const ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  HOD: 'HOD',
+  STAFF: 'STAFF',
+  STUDENT: 'STUDENT',
+};
+
+export const MARK_STATUS = {
+  DRAFT: 'DRAFT',
+  PENDING_APPROVAL: 'PENDING_APPROVAL',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+};
