@@ -14,11 +14,13 @@ async function migrate() {
         await pool.query(sql);
       }
     }
-    console.log('All migrations completed successfully.');
-  } catch (error) {
-    console.error('Migration failed:', error);
+    console.log('✅ All migrations completed successfully.');
+  } catch (error: any) {
+    console.error('⚠️ Migration warning/error:', error.message || error);
   } finally {
-    await pool.end();
+    try {
+      await pool.end();
+    } catch {}
   }
 }
 
