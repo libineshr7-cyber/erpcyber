@@ -42,7 +42,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       // Proceed with local logout even if server call fails
     }
-    set({ user: null });
-    window.location.href = '/login';
+    set({ user: null, requiresMfa: false });
   },
 }));
