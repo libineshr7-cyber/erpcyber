@@ -44,13 +44,6 @@ app.use(helmet({
     preload: true,
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  permissionsPolicy: {
-    features: {
-      camera: [],
-      microphone: [],
-      geolocation: [],
-    },
-  },
 }));
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -73,11 +66,11 @@ app.use(session({
     tableName: 'sessions',
     errorLog: (err) => logger.error('Session store error', { error: err }),
   }),
-  name: 'erp.sid', // Don't use default 'connect.sid'
+  name: 'erp.sid',
   secret: config.session.secret,
   resave: false,
   saveUninitialized: false,
-  rolling: true, // Reset expiry on each request
+  rolling: true,
   cookie: {
     httpOnly: true,
     secure: config.isProduction,

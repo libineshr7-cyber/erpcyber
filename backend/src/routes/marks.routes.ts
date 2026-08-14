@@ -9,7 +9,7 @@ import { createAuditLog } from '../middleware/auditLog';
 import { checkBulkMarkChange } from '../services/securityService';
 import * as marksService from '../services/marksService';
 import * as fs from 'fs';
-import { success, created, paginated } from '../utils/response';
+import { success, created, error, paginated } from '../utils/response';
 
 const router = Router();
 router.use(authenticate);
@@ -57,7 +57,7 @@ router.post('/bulk', authorize('marks:write'), validate(bulkMarkSchema), async (
 
 // POST /api/marks/import — Excel preview
 router.post('/import', uploadLimiter, authorize('marks:write'), excelUpload.single('file'), async (req: Request, res: Response): Promise<void> => {
-  if (!req.file) { success({ status: 400 } as Response, null, 'No file uploaded'); return; }
+  if (!req.file) { error(res, 'No file uploaded', 400); return; }
   const { examId, subjectId } = req.body as { examId: string; subjectId: string };
   const fileBuffer = fs.readFileSync(req.file.path);
   const preview = await marksService.importMarksPreview(fileBuffer, examId, subjectId);

@@ -28,6 +28,7 @@ interface StudentReportData {
   collegeName: string;
   collegeAddress: string;
   departmentName: string;
+  watermarkText: string;
   subjects: Array<{
     code: string;
     name: string;
@@ -116,6 +117,7 @@ export async function generateStudentReport(studentId: string, examId: string, g
     collegeName: config.department.collegeName,
     collegeAddress: config.department.collegeAddress,
     departmentName: student.department_name || config.department.name,
+    watermarkText: config.pdf.watermarkText,
     subjects: marksResult.rows.map(r => ({
       code: r.subject_code,
       name: r.subject_name,
