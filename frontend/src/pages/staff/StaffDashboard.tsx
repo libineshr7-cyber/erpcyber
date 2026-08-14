@@ -1,7 +1,9 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Users, BookOpen, FileCheck, AlertCircle, TrendingUp, Clock } from 'lucide-react';
 import api from '../../api/client';
+import toast from 'react-hot-toast';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string; subtitle?: string }> = ({ title, value, icon, color, subtitle }) => (
   <div className="glass-card p-6 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
@@ -25,11 +27,18 @@ export const StaffDashboard: React.FC = () => {
     queryFn: () => api.get('/api/marks?status=DRAFT&limit=5').then(r => r.data),
   });
 
+  const quickActions = [
+    { label: 'Enter Marks', to: '/staff/mark-entry', icon: '📝', comingSoon: false },
+    { label: 'Take Attendance', to: '/staff/attendance', icon: '📋', comingSoon: true },
+    { label: 'Generate Report', to: '/staff/reports', icon: '📄', comingSoon: false },
+    { label: 'Send via WhatsApp', to: '/staff/whatsapp', icon: '💬', comingSoon: false },
+  ];
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-white heading-gradient mb-2">Staff Dashboard</h1>
-        <p className="text-gray-400">Manage your classes, marks, and attendance</p>
+        <p className="text-gray-400">Manage your classes, marks, and academic reporting</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -92,20 +101,29 @@ export const StaffDashboard: React.FC = () => {
             Quick Actions
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Enter Marks', href: '/staff/mark-entry', icon: '📝' },
-              { label: 'Take Attendance', href: '/staff/attendance', icon: '📋' },
-              { label: 'Generate Report', href: '/staff/reports', icon: '📄' },
-              { label: 'Send via WhatsApp', href: '/staff/whatsapp', icon: '💬' },
-            ].map(a => (
-              <a
-                key={a.label}
-                href={a.href}
-                className="flex flex-col items-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer text-center"
-              >
-                <span className="text-2xl">{a.icon}</span>
-                <span className="text-xs text-gray-300">{a.label}</span>
-              </a>
+            {quickActions.map(a => (
+              a.comingSoon ? (
+                <button
+                  key={a.label}
+                  onClick={() => toast.success('Take Attendance module — Coming Soon!')}
+                  className="relative flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5 text-center group cursor-pointer"
+                >
+                  <span className="absolute top-2 right-2 text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-full">
+                    Coming Soon
+                  </span>
+                  <span className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity">{a.icon}</span>
+                  <span className="text-xs text-gray-400 group-hover:text-white transition-colors">{a.label}</span>
+                </button>
+              ) : (
+                <Link
+                  key={a.label}
+                  to={a.to}
+                  className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 hover:border-cyan-500/30 rounded-xl transition-all border border-white/5 text-center group"
+                >
+                  <span className="text-2xl group-hover:scale-110 transition-transform">{a.icon}</span>
+                  <span className="text-xs text-gray-300 group-hover:text-cyan-400 transition-colors">{a.label}</span>
+                </Link>
+              )
             ))}
           </div>
         </div>
