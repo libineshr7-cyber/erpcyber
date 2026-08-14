@@ -68,13 +68,27 @@ router.delete('/staff/:id/assignments/:aid', authorizeRoles('HOD', 'SUPER_ADMIN'
 });
 
 // ─── Shared routes (Staff + HOD) ─────────────────────────────────────────────
+// Create Course / Subject (Both HOD and Staff have power)
 router.get('/subjects', async (req: Request, res: Response): Promise<void> => {
   const result = await academicService.getSubjects(req.query as Record<string, unknown>);
   paginated(res, result.subjects, result.total, result.page, result.limit);
 });
 
+router.post('/subjects', authorizeRoles('HOD', 'SUPER_ADMIN', 'STAFF'), async (req: Request, res: Response): Promise<void> => {
+  const result = await academicService.createSubject(req.body, req.user!.userId);
+  await createAuditLog(req, { action: 'SUBJECT_CREATED', resourceType: 'subject', resourceId: result.subject_id });
+  success(res, result, 'Course/Subject created');
+});
+
+// Create Exam (Both HOD and Staff have power)
 router.get('/exams', async (req: Request, res: Response): Promise<void> => {
   success(res, await academicService.getExams(req.query as Record<string, unknown>));
+});
+
+router.post('/exams', authorizeRoles('HOD', 'SUPER_ADMIN', 'STAFF'), async (req: Request, res: Response): Promise<void> => {
+  const result = await academicService.createExam(req.body, req.user!.userId);
+  await createAuditLog(req, { action: 'EXAM_CREATED', resourceType: 'exam', resourceId: result.exam_id });
+  success(res, result, 'Exam created');
 });
 
 router.get('/events', async (req: Request, res: Response): Promise<void> => {
