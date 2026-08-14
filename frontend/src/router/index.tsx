@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 // Layouts
@@ -73,7 +73,7 @@ const HomeRedirect: React.FC = () => {
   return <Navigate to="/login" replace />;
 };
 
-const router = createBrowserRouter([
+const router = createHashRouter([
   {
     path: '/login',
     element: <LoginPage />,

@@ -48,7 +48,7 @@ app.use(helmet({
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: config.frontendUrl,
+  origin: true, // Allow all origins for dev/production CORS flexibility
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -74,7 +74,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     secure: config.isProduction,
-    sameSite: 'strict',
+    sameSite: config.isProduction ? 'none' : 'lax',
     maxAge: config.session.maxAge,
   },
 }));
@@ -87,9 +87,14 @@ app.use((req, _res, next) => {
   next();
 });
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: config.nodeEnv });
+// ─── Health Check & Live DB Status ─────────────────────────────────────────────
+app.get(['/health', '/api/health'], async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+  } catch (err: any) {
+    res.status(500).json({ status: 'degraded', database: 'error', error: err.message });
+  }
 });
 
 // ─── API Rate Limiter ─────────────────────────────────────────────────────────
