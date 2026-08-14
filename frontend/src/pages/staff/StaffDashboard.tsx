@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Users, BookOpen, FileCheck, AlertCircle, TrendingUp, Clock, Plus, Award } from 'lucide-react';
+import { Users, BookOpen, FileCheck, TrendingUp, Clock, Award } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -16,19 +16,27 @@ const StatCard: React.FC<{ title: string; value: string | number; icon: React.Re
   </div>
 );
 
+const INITIAL_SUBJECTS = [
+  { assignment_id: 'sub_1', subject_id: 'sub_id_1', subject_code: 'CS201', subject_name: 'Network Security', section_name: 'A', semester: '3', academic_year: '2025-2026' },
+  { assignment_id: 'sub_2', subject_id: 'sub_id_2', subject_code: 'CS102', subject_name: 'Programming in C', section_name: 'A', semester: '1', academic_year: '2025-2026' },
+  { assignment_id: 'sub_3', subject_id: 'sub_id_3', subject_code: 'CS301', subject_name: 'Web Application Security', section_name: 'B', semester: '5', academic_year: '2025-2026' },
+];
+
 export const StaffDashboard: React.FC = () => {
   const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
   const [isAddExamModalOpen, setIsAddExamModalOpen] = useState(false);
-  const [localCourses, setLocalCourses] = useState<any[]>([]);
+  const [myCreatedCourses, setMyCreatedCourses] = useState<any[]>(INITIAL_SUBJECTS);
 
-  // Form states for Course
+  // Form states for Course Creation
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectName, setSubjectName] = useState('');
   const [subjectType, setSubjectType] = useState('THEORY');
   const [credits, setCredits] = useState('3');
+  const [yearOfStudy, setYearOfStudy] = useState('2');
   const [semesterNumber, setSemesterNumber] = useState('3');
+  const [sectionName, setSectionName] = useState('A');
 
-  // Form states for Exam
+  // Form states for Exam Creation
   const [examName, setExamName] = useState('');
   const [examCode, setExamCode] = useState('');
   const [maximumMarks, setMaximumMarks] = useState('50');
@@ -55,30 +63,33 @@ export const StaffDashboard: React.FC = () => {
 
   const handleCreateCourse = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    const code = subjectCode.toUpperCase();
     const newCourse = {
       assignment_id: `c_${Date.now()}`,
-      subject_code: subjectCode.toUpperCase(),
+      subject_id: `sub_${Date.now()}`,
+      subject_code: code,
       subject_name: subjectName,
-      section_name: 'A',
+      section_name: sectionName,
       semester: semesterNumber,
+      year: yearOfStudy,
       academic_year: '2025-2026',
     };
 
     try {
       await api.post('/api/subjects', {
-        subjectCode: subjectCode.toUpperCase(),
+        subjectCode: code,
         subjectName,
         subjectType,
         credits: Number(credits),
         semesterNumber: Number(semesterNumber),
-        yearOfStudy: Math.ceil(Number(semesterNumber) / 2),
+        yearOfStudy: Number(yearOfStudy),
         maximumMarks: 100,
         passingMarks: 50,
       });
     } catch {}
 
-    setLocalCourses(prev => [newCourse, ...prev]);
-    toast.success(`Course ${subjectCode.toUpperCase()} created successfully!`);
+    setMyCreatedCourses(prev => [newCourse, ...prev]);
+    toast.success(`Course ${code} (${subjectName}) created successfully!`);
     setIsAddCourseModalOpen(false);
     setSubjectCode('');
     setSubjectName('');
@@ -87,10 +98,11 @@ export const StaffDashboard: React.FC = () => {
 
   const handleCreateExam = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    const code = examCode.toUpperCase();
     try {
       await api.post('/api/exams', {
         examName,
-        examCode: examCode.toUpperCase(),
+        examCode: code,
         maximumMarks: Number(maximumMarks),
         passingMarks: Number(passingMarks),
       });
@@ -109,11 +121,7 @@ export const StaffDashboard: React.FC = () => {
     { label: 'Send via WhatsApp', to: '/staff/whatsapp', icon: '💬', comingSoon: false },
   ];
 
-  const assignedList = assignmentsData?.length ? assignmentsData : [
-    ...localCourses,
-    { assignment_id: '1', subject_code: 'CS102', subject_name: 'Programming in C', section_name: 'A', semester: '1', academic_year: '2025-2026' },
-    { assignment_id: '2', subject_code: 'CS201', subject_name: 'Network Security', section_name: 'A', semester: '3', academic_year: '2025-2026' },
-  ];
+  const assignedList = assignmentsData?.length ? assignmentsData : myCreatedCourses;
 
   return (
     <div className="space-y-8">
@@ -178,16 +186,16 @@ export const StaffDashboard: React.FC = () => {
         <div className="glass-card p-6 rounded-2xl">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-cyan-400" />
-            My Assigned Subjects
+            My Assigned Subjects ({assignedList.length})
           </h2>
           <div className="space-y-3">
             {assignedList.map((a: Record<string, string>) => (
-              <div key={a.assignment_id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+              <div key={a.assignment_id || a.subject_code} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
                 <div>
                   <div className="text-sm font-medium text-white">{a.subject_name}</div>
-                  <div className="text-xs text-gray-400">{a.subject_code} · Section {a.section_name} · Sem {a.semester}</div>
+                  <div className="text-xs text-gray-400">{a.subject_code} · Section {a.section_name || 'A'} · Sem {a.semester || '3'}</div>
                 </div>
-                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded-full">{a.academic_year}</span>
+                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded-full">{a.academic_year || '2025-2026'}</span>
               </div>
             ))}
           </div>
@@ -228,7 +236,7 @@ export const StaffDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Create Course Modal */}
+      {/* Create Course Modal with Year, Sem, Section */}
       {isAddCourseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-2xl space-y-4 border border-cyan-500/30 animate-slide-up">
@@ -271,24 +279,44 @@ export const StaffDashboard: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-300 mb-1">Credits</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={6}
-                    value={credits}
-                    onChange={ev => setCredits(ev.target.value)}
-                    className="input-field"
-                  />
+                  <label className="block text-xs text-gray-300 mb-1">Year of Study</label>
+                  <select value={yearOfStudy} onChange={ev => setYearOfStudy(ev.target.value)} className="input-field">
+                    <option value="1">1st Year</option>
+                    <option value="2">2nd Year</option>
+                    <option value="3">3rd Year</option>
+                    <option value="4">4th Year</option>
+                  </select>
                 </div>
+
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Semester</label>
                   <select value={semesterNumber} onChange={ev => setSemesterNumber(ev.target.value)} className="input-field">
                     {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Sem {s}</option>)}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-xs text-gray-300 mb-1">Section</label>
+                  <select value={sectionName} onChange={ev => setSectionName(ev.target.value)} className="input-field">
+                    <option value="A">Section A</option>
+                    <option value="B">Section B</option>
+                    <option value="C">Section C</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-300 mb-1">Credits</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={credits}
+                  onChange={ev => setCredits(ev.target.value)}
+                  className="input-field"
+                />
               </div>
 
               <div className="flex gap-3 pt-3 justify-end">
