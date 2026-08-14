@@ -9,18 +9,20 @@ const envSchema = z.object({
   PORT: z.string().default('3000').transform(Number),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
 
+  DATABASE_URL: z.string().optional(),
+
   POSTGRES_HOST: z.string().default('localhost'),
   POSTGRES_PORT: z.string().default('5432').transform(Number),
-  POSTGRES_DB: z.string(),
-  POSTGRES_USER: z.string(),
-  POSTGRES_PASSWORD: z.string(),
+  POSTGRES_DB: z.string().default('erp_db'),
+  POSTGRES_USER: z.string().default('erp_user'),
+  POSTGRES_PASSWORD: z.string().default('erp_dev_password'),
   POSTGRES_SSL: z.string().default('false').transform(v => v === 'true'),
 
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.string().default('6379').transform(Number),
   REDIS_PASSWORD: z.string().optional(),
 
-  SESSION_SECRET: z.string().min(32),
+  SESSION_SECRET: z.string().default('dev_session_secret_change_in_production_64_chars_minimum_length_xyz'),
   SESSION_MAX_AGE_MS: z.string().default('1800000').transform(Number),
   SESSION_IDLE_TIMEOUT_MS: z.string().default('1800000').transform(Number),
   SESSION_HOD_IDLE_TIMEOUT_MS: z.string().default('900000').transform(Number),
@@ -30,7 +32,7 @@ const envSchema = z.object({
   ARGON2_PARALLELISM: z.string().default('4').transform(Number),
 
   MFA_ISSUER: z.string().default('Department ERP'),
-  MFA_ENCRYPTION_KEY: z.string().min(32),
+  MFA_ENCRYPTION_KEY: z.string().default('00000000000000000000000000000001'),
 
   PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: z.string().default('30').transform(Number),
 
@@ -61,7 +63,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default('info'),
   LOG_FILE: z.string().default('./logs/app.log'),
 
-  FIELD_ENCRYPTION_KEY: z.string().min(32),
+  FIELD_ENCRYPTION_KEY: z.string().default('00000000000000000000000000000002'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -76,6 +78,8 @@ export const config = {
   port: parsed.data.PORT,
   frontendUrl: parsed.data.FRONTEND_URL,
   isProduction: parsed.data.NODE_ENV === 'production',
+
+  databaseUrl: parsed.data.DATABASE_URL,
 
   db: {
     host: parsed.data.POSTGRES_HOST,
