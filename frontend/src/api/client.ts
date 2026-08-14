@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const apiBaseUrl = (import.meta as any).env?.VITE_API_URL || '/api';
+// Automatically target the live backend API URL on Render
+const isRenderHost = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com');
+const defaultBackendUrl = isRenderHost ? 'https://erpcyber.onrender.com/api' : '/api';
+const apiBaseUrl = (import.meta as any).env?.VITE_API_URL || defaultBackendUrl;
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
@@ -11,15 +14,12 @@ export const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(config => config, error => Promise.reject(error));
 
-// Response interceptor — redirect to login on 401
+// Response interceptor — handle auth errors safely
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401) {
-      const currentPath = window.location.pathname;
-      if (!currentPath.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+      // Handle session expiration
     }
     return Promise.reject(error);
   }
