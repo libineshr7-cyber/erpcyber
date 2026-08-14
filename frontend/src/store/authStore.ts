@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import api from '../api/client';
 
 export interface AuthUser {
@@ -18,30 +19,40 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isLoading: true,
-  requiresMfa: false,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      user: null,
+      isLoading: false,
+      requiresMfa: false,
 
-  setUser: (user) => set({ user }),
-  setRequiresMfa: (v) => set({ requiresMfa: v }),
+      setUser: (user) => set({ user }),
+      setRequiresMfa: (v) => set({ requiresMfa: v }),
 
-  checkAuth: async () => {
-    set({ isLoading: true });
-    try {
-      const { data } = await api.get('/auth/me');
-      set({ user: data.data as AuthUser, isLoading: false });
-    } catch {
-      set({ user: null, isLoading: false });
+      checkAuth: async () => {
+        try {
+          const { data } = await api.get('/auth/me');
+          if (data?.data) {
+            set({ user: data.data as AuthUser });
+          }
+        } catch {
+          // Maintain active persisted user on refresh if server is waking up
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      logout: async () => {
+        try {
+          await api.post('/auth/logout');
+        } catch {}
+        set({ user: null, requiresMfa: false });
+        sessionStorage.clear();
+      },
+    }),
+    {
+      name: 'erp-auth-storage',
+      storage: createJSONStorage(() => sessionStorage),
     }
-  },
-
-  logout: async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch {
-      // Proceed with local logout even if server call fails
-    }
-    set({ user: null, requiresMfa: false });
-  },
-}));
+  )
+);
