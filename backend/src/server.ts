@@ -17,13 +17,11 @@ async function startServer(): Promise<void> {
     client.release();
     logger.info('✅ PostgreSQL connection verified');
   } catch (err) {
-    logger.error('❌ Could not connect to PostgreSQL. Is Docker running?', { error: err });
-    logger.info('Run: docker compose up -d (from d:/ERP/)');
-    process.exit(1);
+    logger.error('❌ Could not connect to PostgreSQL. Is DB running?', { error: err });
   }
 
   const server = app.listen(config.port, () => {
-    logger.info(`🚀 ERP Backend running on http://localhost:${config.port}`);
+    logger.info(`🚀 ERP Backend running on port ${config.port}`);
     logger.info(`📦 Environment: ${config.nodeEnv}`);
     logger.info(`🔒 Session: HttpOnly + SameSite=Strict cookies`);
     logger.info(`🛡️  Security: Helmet + Rate Limiting + RBAC active`);
@@ -37,14 +35,13 @@ async function startServer(): Promise<void> {
       logger.info('PostgreSQL pool closed');
       process.exit(0);
     });
-    // Force exit after 10s
     setTimeout(() => process.exit(1), 10000);
   };
 
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-  process.on('unhandledRejection', (reason) => {
+  process.on('unhandledRejection', (reason: any) => {
     logger.error('Unhandled Promise Rejection', { reason });
   });
 }

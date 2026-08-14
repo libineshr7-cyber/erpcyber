@@ -5,6 +5,7 @@ export interface ApiResponse<T = unknown> {
   message?: string;
   data?: T;
   error?: string;
+  details?: unknown;
   pagination?: PaginationMeta;
 }
 
@@ -54,7 +55,7 @@ export function paginated<T>(
 export function error(res: Response, message: string, statusCode = 400, details?: unknown): Response {
   const response: ApiResponse = { success: false, error: message };
   if (details && process.env.NODE_ENV === 'development') {
-    (response as Record<string, unknown>).details = details;
+    response.details = details;
   }
   return res.status(statusCode).json(response);
 }
