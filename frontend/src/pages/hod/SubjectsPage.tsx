@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Search, UserCheck, Filter, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Search, UserCheck, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -29,20 +29,20 @@ export const SubjectsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [yearFilter, setYearFilter] = useState<string>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<any | null>(null);
   const [assigningSubject, setAssigningSubject] = useState<any | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState('ST001');
 
   const [localSubjects, setLocalSubjects] = useState<any[]>([]);
 
-  // Form State for New Subject
+  // Form State for Subject
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectName, setSubjectName] = useState('');
   const [subjectType, setSubjectType] = useState('THEORY+PRACTICAL');
   const [credits, setCredits] = useState('4');
   const [semesterNumber, setSemesterNumber] = useState('3');
   const [yearOfStudy, setYearOfStudy] = useState('2');
-  const [maximumMarks, setMaximumMarks] = useState('100');
-  const [passingMarks, setPassingMarks] = useState('50');
+  const [assignedTeacher, setAssignedTeacher] = useState('Unassigned');
 
   const qc = useQueryClient();
 
@@ -77,10 +77,52 @@ export const SubjectsPage: React.FC = () => {
     return matchesSearch && matchesYear;
   });
 
-  const addSubjectMutation = useMutation({
-    mutationFn: async () => {
-      const code = subjectCode.toUpperCase();
-      const yr = Number(yearOfStudy);
+  const openEditSubjectModal = (sub: any) => {
+    setEditingSubject(sub);
+    setSubjectCode(sub.subject_code);
+    setSubjectName(sub.subject_name);
+    setSubjectType(sub.subject_type || 'THEORY+PRACTICAL');
+    setCredits(String(sub.credits || 4));
+    setSemesterNumber(String(sub.semester_number || 3));
+    const yr = sub.year_of_study || (sub.semester_number <= 2 ? 1 : sub.semester_number <= 4 ? 2 : sub.semester_number <= 6 ? 3 : 4);
+    setYearOfStudy(String(yr));
+    setAssignedTeacher(sub.assigned_teacher || 'Unassigned');
+  };
+
+  const handleSaveSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = subjectCode.toUpperCase();
+    const yr = Number(yearOfStudy);
+
+    if (editingSubject) {
+      // Modify/Edit existing subject
+      const updated = {
+        ...editingSubject,
+        subject_code: code,
+        subject_name: subjectName,
+        subject_type: subjectType,
+        credits: Number(credits),
+        semester_number: Number(semesterNumber),
+        year_of_study: yr,
+        assigned_teacher: assignedTeacher,
+      };
+
+      try {
+        await api.put(`/api/subjects/${editingSubject.subject_id}`, {
+          subjectCode: code,
+          subjectName,
+          subjectType,
+          credits: Number(credits),
+          semesterNumber: Number(semesterNumber),
+          yearOfStudy: yr,
+        });
+      } catch {}
+
+      setLocalSubjects(prev => prev.map(s => (s.subject_id === editingSubject.subject_id || s.subject_code === editingSubject.subject_code) ? updated : s));
+      toast.success(`Subject ${code} updated successfully!`);
+      setEditingSubject(null);
+    } else {
+      // Add new subject
       const newSub = {
         subject_id: `sub_${Date.now()}`,
         subject_code: code,
@@ -89,9 +131,9 @@ export const SubjectsPage: React.FC = () => {
         credits: Number(credits),
         semester_number: Number(semesterNumber),
         year_of_study: yr,
-        maximum_marks: Number(maximumMarks),
-        passing_marks: Number(passingMarks),
-        assigned_teacher: 'Unassigned',
+        maximum_marks: 100,
+        passing_marks: 50,
+        assigned_teacher: assignedTeacher,
       };
 
       try {
@@ -102,23 +144,28 @@ export const SubjectsPage: React.FC = () => {
           credits: Number(credits),
           semesterNumber: Number(semesterNumber),
           yearOfStudy: yr,
-          maximumMarks: Number(maximumMarks),
-          passingMarks: Number(passingMarks),
+          maximumMarks: 100,
+          passingMarks: 50,
         });
       } catch {}
 
       setLocalSubjects(prev => [newSub, ...prev]);
-      return newSub;
-    },
-    onSuccess: () => {
-      toast.success(`Course ${subjectCode.toUpperCase()} (${subjectType}) created successfully!`);
+      toast.success(`Course ${code} created successfully!`);
       setIsAddModalOpen(false);
-      setSubjectCode('');
-      setSubjectName('');
-      qc.invalidateQueries({ queryKey: ['subjects-list'] });
-      qc.invalidateQueries({ queryKey: ['staff-assignments'] });
-    },
-  });
+    }
+
+    setSubjectCode('');
+    setSubjectName('');
+    qc.invalidateQueries({ queryKey: ['subjects-list'] });
+  };
+
+  const handleDeleteSubject = (subjectId: string, code: string) => {
+    if (confirm(`Delete course ${code}?`)) {
+      api.delete(`/api/subjects/${subjectId}`).catch(() => {});
+      setLocalSubjects(prev => prev.filter(s => s.subject_id !== subjectId && s.subject_code !== code));
+      toast.success(`Course ${code} deleted`);
+    }
+  };
 
   const handleAssignTeacher = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +174,6 @@ export const SubjectsPage: React.FC = () => {
     const teacher = staffList.find((s: any) => s.employee_id === selectedStaffId || s.staff_id === selectedStaffId) || staffList[0];
     const teacherNameLabel = `${teacher.name} (${teacher.employee_id || 'ST001'})`;
 
-    // Save in local state
     setLocalSubjects(prev => prev.map(s => {
       if (s.subject_id === assigningSubject.subject_id || s.subject_code === assigningSubject.subject_code) {
         return { ...s, assigned_teacher: teacherNameLabel };
@@ -167,11 +213,16 @@ export const SubjectsPage: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white heading-gradient">Curriculum & Subjects ({filteredSubjects.length})</h1>
-          <p className="text-gray-400 text-sm">Course Types: Theory, Practical & Theory+Practical · Organized by Year</p>
+          <h1 className="text-3xl font-bold text-white heading-gradient">Curriculum & Subject Management ({filteredSubjects.length})</h1>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete, assign faculty, and filter subjects by year</p>
         </div>
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            setEditingSubject(null);
+            setSubjectCode('');
+            setSubjectName('');
+            setIsAddModalOpen(true);
+          }}
           className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
         >
           <BookOpen className="w-4 h-4" />
@@ -202,7 +253,7 @@ export const SubjectsPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* Search Bar */}
       <div className="glass-card p-4 rounded-2xl">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -216,7 +267,7 @@ export const SubjectsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Subjects Table */}
+      {/* Subjects Table with Edit, Assign & Delete Actions */}
       <div className="glass-card rounded-2xl overflow-hidden">
         {isLoading && !filteredSubjects.length ? (
           <div className="p-12 text-center flex justify-center"><div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -232,7 +283,7 @@ export const SubjectsPage: React.FC = () => {
                   <th className="p-4">Year & Semester</th>
                   <th className="p-4">Subject Type</th>
                   <th className="p-4">Assigned Faculty</th>
-                  <th className="p-4 text-right">Assign Action</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-sm">
@@ -243,7 +294,7 @@ export const SubjectsPage: React.FC = () => {
                       <td className="p-4 font-mono font-bold text-cyan-400">{sub.subject_code}</td>
                       <td className="p-4 text-white font-medium">
                         {sub.subject_name}
-                        <div className="text-xs text-gray-400 font-normal">Credits: {sub.credits} · Max Marks: {sub.maximum_marks}</div>
+                        <div className="text-xs text-gray-400 font-normal">Credits: {sub.credits}</div>
                       </td>
                       <td className="p-4 text-xs font-semibold">
                         <span className="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20">
@@ -263,13 +314,27 @@ export const SubjectsPage: React.FC = () => {
                           <span className="text-gray-500 italic">Not Assigned</span>
                         )}
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="p-4 text-right space-x-1.5">
+                        <button
+                          onClick={() => openEditSubjectModal(sub)}
+                          className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors"
+                          title="Edit / Modify Subject Info"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => { setAssigningSubject(sub); setSelectedStaffId(staffList[0]?.employee_id || 'ST001'); }}
-                          className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 ml-auto cursor-pointer"
+                          className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg transition-colors"
+                          title="Assign Faculty Member"
                         >
-                          <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
-                          Assign Faculty
+                          <UserCheck className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSubject(sub.subject_id, sub.subject_code)}
+                          className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
+                          title="Delete Subject"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
@@ -281,16 +346,16 @@ export const SubjectsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Add Subject Modal */}
-      {isAddModalOpen && (
+      {/* Add / Edit Subject Modal */}
+      {(isAddModalOpen || editingSubject) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-2xl space-y-4 border border-cyan-500/30 animate-slide-up">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-cyan-400" />
-              Add New Curriculum Subject
+              {editingSubject ? <Edit2 className="w-5 h-5 text-cyan-400" /> : <BookOpen className="w-5 h-5 text-cyan-400" />}
+              {editingSubject ? `Edit Subject: ${editingSubject.subject_code}` : 'Add New Curriculum Subject'}
             </h2>
 
-            <form onSubmit={e => { e.preventDefault(); addSubjectMutation.mutate(); }} className="space-y-3 text-sm">
+            <form onSubmit={handleSaveSubject} className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Subject Code</label>
@@ -304,7 +369,7 @@ export const SubjectsPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-300 mb-1">Type</label>
+                  <label className="block text-xs text-gray-300 mb-1">Subject Type</label>
                   <select value={subjectType} onChange={e => setSubjectType(e.target.value)} className="input-field font-semibold text-cyan-300">
                     <option value="THEORY+PRACTICAL">Theory + Practical</option>
                     <option value="THEORY">Theory Only</option>
@@ -339,7 +404,7 @@ export const SubjectsPage: React.FC = () => {
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Semester</label>
                   <select value={semesterNumber} onChange={e => setSemesterNumber(e.target.value)} className="input-field">
-                    {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Sem {s}</option>)}
+                    {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={String(s)}>Sem {s}</option>)}
                   </select>
                 </div>
 
@@ -356,20 +421,31 @@ export const SubjectsPage: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs text-gray-300 mb-1">Assigned Faculty Member</label>
+                <select value={assignedTeacher} onChange={e => setAssignedTeacher(e.target.value)} className="input-field">
+                  <option value="Unassigned">Unassigned</option>
+                  {staffList.map((st: any) => (
+                    <option key={st.staff_id || st.employee_id} value={`${st.name} (${st.employee_id || 'ST001'})`}>
+                      {st.name} ({st.employee_id || 'ST001'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex gap-3 pt-4 justify-end">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => { setIsAddModalOpen(false); setEditingSubject(null); }}
                   className="btn-secondary text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={addSubjectMutation.isPending}
                   className="btn-primary text-xs"
                 >
-                  Save Subject
+                  {editingSubject ? 'Save Changes' : 'Save Subject'}
                 </button>
               </div>
             </form>

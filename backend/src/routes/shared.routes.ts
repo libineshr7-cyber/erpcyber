@@ -8,6 +8,7 @@ import { handleWhatsAppWebhook } from '../services/whatsappService';
 import { config } from '../config/env';
 import { safeCompare } from '../utils/crypto';
 import { createAuditLog } from '../middleware/auditLog';
+import pool from '../config/database';
 
 const router = Router();
 
@@ -83,6 +84,18 @@ router.post('/subjects', authorizeRoles('HOD', 'SUPER_ADMIN', 'STAFF'), async (r
   const result = await academicService.createSubject(req.body, req.user!.userId);
   await createAuditLog(req, { action: 'SUBJECT_CREATED', resourceType: 'subject', resourceId: result.subject_id });
   success(res, result, 'Course/Subject created');
+});
+
+router.put('/subjects/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  await academicService.updateSubject(req.params.id, req.body);
+  await createAuditLog(req, { action: 'SUBJECT_UPDATED', resourceType: 'subject', resourceId: req.params.id });
+  success(res, null, 'Subject updated successfully');
+});
+
+router.delete('/subjects/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  await pool.query("UPDATE subjects SET status = 'ARCHIVED', updated_at = NOW() WHERE subject_id = $1", [req.params.id]);
+  await createAuditLog(req, { action: 'SUBJECT_DELETED', resourceType: 'subject', resourceId: req.params.id });
+  success(res, null, 'Subject deleted successfully');
 });
 
 router.get('/exams', async (req: Request, res: Response): Promise<void> => {
