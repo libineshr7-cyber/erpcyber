@@ -35,7 +35,6 @@ import { MyClassesPage } from '../pages/staff/MyClassesPage';
 import { StudentDashboard } from '../pages/student/StudentDashboard';
 import { MyMarksPage } from '../pages/student/MyMarksPage';
 import { MyAttendancePage } from '../pages/student/MyAttendancePage';
-import { MyReportsPage } from '../pages/student/MyReportsPage';
 import { EventsPage } from '../pages/student/EventsPage';
 import { ProfilePage } from '../pages/student/ProfilePage';
 import { AnnouncementsPage as StudentAnnouncementsPage } from '../pages/student/AnnouncementsPage';
@@ -130,7 +129,7 @@ const router = createHashRouter([
       { index: true, element: <StudentDashboard /> },
       { path: 'marks', element: <MyMarksPage /> },
       { path: 'attendance', element: <MyAttendancePage /> },
-      { path: 'reports', element: <MyReportsPage /> },
+      { path: 'reports', element: <Navigate to="/student/marks" replace /> },
       { path: 'events', element: <EventsPage /> },
       { path: 'announcements', element: <StudentAnnouncementsPage /> },
       { path: 'profile', element: <ProfilePage /> },

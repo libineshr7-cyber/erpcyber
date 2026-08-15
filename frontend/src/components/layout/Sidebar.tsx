@@ -52,7 +52,6 @@ export const Sidebar: React.FC = () => {
     { to: '/student', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/student/marks', label: 'My Marks', icon: Award },
     { to: '/student/attendance', label: 'My Attendance', icon: CheckCircle2 },
-    { to: '/student/reports', label: 'My Reports', icon: FileText },
     { to: '/student/events', label: 'Events', icon: Calendar },
     { to: '/student/announcements', label: 'Announcements', icon: Megaphone },
     { to: '/student/profile', label: 'My Profile', icon: User },
