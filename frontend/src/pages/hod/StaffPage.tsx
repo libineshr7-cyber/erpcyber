@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserCheck, Search, Trash2, Key, Mail } from 'lucide-react';
+import { UserCheck, Search, Trash2, Key, Mail, Edit2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -17,9 +17,10 @@ const SEEDED_STAFF = [
 export const StaffPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [localStaff, setLocalStaff] = useState<any[]>([]);
 
-  // New Staff Form State
+  // New/Edit Staff Form State
   const [employeeId, setEmployeeId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -46,8 +47,41 @@ export const StaffPage: React.FC = () => {
     return !search || s.employee_id?.toLowerCase().includes(search.toLowerCase()) || s.name?.toLowerCase().includes(search.toLowerCase());
   });
 
-  const addStaffMutation = useMutation({
-    mutationFn: async () => {
+  const openEditModal = (staffMember: any) => {
+    setEditingStaff(staffMember);
+    setEmployeeId(staffMember.employee_id);
+    setName(staffMember.name);
+    setEmail(staffMember.email || `${staffMember.employee_id.toLowerCase()}@erp.local`);
+    setDesignation(staffMember.designation || 'Assistant Professor');
+  };
+
+  const handleSaveStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editingStaff) {
+      // Edit existing staff member
+      const updated = {
+        ...editingStaff,
+        employee_id: employeeId,
+        name,
+        email,
+        designation,
+      };
+
+      try {
+        await api.put(`/api/staff/${editingStaff.staff_id}`, {
+          employeeId,
+          name,
+          email,
+          designation,
+        });
+      } catch {}
+
+      setLocalStaff(prev => prev.map(s => s.staff_id === editingStaff.staff_id ? updated : s));
+      toast.success(`Staff member ${employeeId} updated successfully!`);
+      setEditingStaff(null);
+    } else {
+      // Add new staff member
       const newStaff = {
         staff_id: `custom_st_${Date.now()}`,
         employee_id: employeeId,
@@ -55,21 +89,21 @@ export const StaffPage: React.FC = () => {
         email: email || `${employeeId.toLowerCase()}@erp.local`,
         designation,
       };
+
       try {
         await api.post('/api/staff', { employeeId, name, email: newStaff.email, designation });
       } catch {}
+
       setLocalStaff(prev => [newStaff, ...prev]);
-      return newStaff;
-    },
-    onSuccess: () => {
       toast.success(`Staff member ${employeeId} added with default password "123"!`);
       setIsAddModalOpen(false);
-      setEmployeeId('');
-      setName('');
-      setEmail('');
-      qc.invalidateQueries({ queryKey: ['staff-list'] });
-    },
-  });
+    }
+
+    setEmployeeId('');
+    setName('');
+    setEmail('');
+    qc.invalidateQueries({ queryKey: ['staff-list'] });
+  };
 
   const deleteStaff = (staffId: string, empId: string) => {
     if (confirm(`Delete staff member ${empId}?`)) {
@@ -90,10 +124,16 @@ export const StaffPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Faculty & Staff Roster ({filteredStaff.length} Members)</h1>
-          <p className="text-gray-400 text-sm">ST001 to ST007 · Default Password: <span className="text-cyan-400 font-mono">123</span></p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & reset faculty credentials</p>
         </div>
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            setEditingStaff(null);
+            setEmployeeId('');
+            setName('');
+            setEmail('');
+            setIsAddModalOpen(true);
+          }}
           className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20"
         >
           <UserCheck className="w-4 h-4" />
@@ -115,7 +155,7 @@ export const StaffPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Staff List Table */}
+      {/* Staff List Table with Edit Action */}
       <div className="glass-card rounded-2xl overflow-hidden">
         {!filteredStaff.length ? (
           <div className="p-12 text-center text-gray-500">No staff members found.</div>
@@ -142,6 +182,13 @@ export const StaffPage: React.FC = () => {
                     <td className="p-4 text-gray-300 text-xs">{s.designation || 'Assistant Professor'}</td>
                     <td className="p-4 text-right space-x-2">
                       <button
+                        onClick={() => openEditModal(s)}
+                        className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg transition-colors"
+                        title="Edit Faculty Info"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => resetPassword(s.employee_id.toLowerCase())}
                         className="p-2 hover:bg-yellow-500/10 text-yellow-400 rounded-lg transition-colors"
                         title="Reset password to 123"
@@ -164,19 +211,21 @@ export const StaffPage: React.FC = () => {
         )}
       </div>
 
-      {/* Add Staff Modal */}
-      {isAddModalOpen && (
+      {/* Add / Edit Staff Modal */}
+      {(isAddModalOpen || editingStaff) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-2xl space-y-4 border border-purple-500/30 animate-slide-up">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-purple-400" />
-              Add New Staff Member
+              {editingStaff ? <Edit2 className="w-5 h-5 text-purple-400" /> : <UserCheck className="w-5 h-5 text-purple-400" />}
+              {editingStaff ? `Edit Faculty Member: ${editingStaff.employee_id}` : 'Add New Staff Member'}
             </h2>
-            <p className="text-xs text-gray-400">Default login password will be set to <span className="font-mono text-cyan-400">123</span>.</p>
+            <p className="text-xs text-gray-400">
+              {editingStaff ? 'Update Employee ID, faculty full name, institutional email, and designation.' : 'Default login password will be set to 123.'}
+            </p>
 
-            <form onSubmit={e => { e.preventDefault(); addStaffMutation.mutate(); }} className="space-y-3 text-sm">
+            <form onSubmit={handleSaveStaff} className="space-y-3 text-sm">
               <div>
-                <label className="block text-xs text-gray-300 mb-1">Employee ID (e.g. ST008)</label>
+                <label className="block text-xs text-gray-300 mb-1">Employee ID (Emp ID)</label>
                 <input
                   type="text"
                   required
@@ -215,6 +264,7 @@ export const StaffPage: React.FC = () => {
                 <label className="block text-xs text-gray-300 mb-1">Designation</label>
                 <input
                   type="text"
+                  required
                   value={designation}
                   onChange={e => setDesignation(e.target.value)}
                   placeholder="Assistant Professor"
@@ -225,17 +275,16 @@ export const StaffPage: React.FC = () => {
               <div className="flex gap-3 pt-4 justify-end">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => { setIsAddModalOpen(false); setEditingStaff(null); }}
                   className="btn-secondary text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={addStaffMutation.isPending}
                   className="btn-primary text-xs"
                 >
-                  Save Staff Member
+                  {editingStaff ? 'Save Changes' : 'Create Staff Member'}
                 </button>
               </div>
             </form>

@@ -47,6 +47,12 @@ router.get('/staff/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Reque
   success(res, await staffService.getStaffById(req.params.id));
 });
 
+router.put('/staff/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const updated = await staffService.updateStaff(req.params.id, req.body);
+  await createAuditLog(req, { action: 'STAFF_UPDATED', resourceType: 'staff', resourceId: req.params.id });
+  success(res, updated, 'Staff member updated');
+});
+
 router.delete('/staff/:id', authorizeRoles('HOD', 'SUPER_ADMIN'), async (req: Request, res: Response): Promise<void> => {
   await staffService.deleteStaff(req.params.id);
   await createAuditLog(req, { action: 'STAFF_DELETED', resourceType: 'staff', resourceId: req.params.id });
@@ -68,7 +74,6 @@ router.delete('/staff/:id/assignments/:aid', authorizeRoles('HOD', 'SUPER_ADMIN'
 });
 
 // ─── Shared routes (Staff + HOD) ─────────────────────────────────────────────
-// Create Course / Subject (Both HOD and Staff have power)
 router.get('/subjects', async (req: Request, res: Response): Promise<void> => {
   const result = await academicService.getSubjects(req.query as Record<string, unknown>);
   paginated(res, result.subjects, result.total, result.page, result.limit);
@@ -80,7 +85,6 @@ router.post('/subjects', authorizeRoles('HOD', 'SUPER_ADMIN', 'STAFF'), async (r
   success(res, result, 'Course/Subject created');
 });
 
-// Create Exam (Both HOD and Staff have power)
 router.get('/exams', async (req: Request, res: Response): Promise<void> => {
   success(res, await academicService.getExams(req.query as Record<string, unknown>));
 });

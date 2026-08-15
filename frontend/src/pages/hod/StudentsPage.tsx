@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Search, Trash2, Key, Filter, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Search, Trash2, Key, Filter, Edit2, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -44,9 +44,10 @@ export const StudentsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
   const [localStudents, setLocalStudents] = useState<any[]>([]);
 
-  // New Student Form State
+  // New/Edit Student Form State
   const [registerNumber, setRegisterNumber] = useState('');
   const [name, setName] = useState('');
   const [programme, setProgramme] = useState('B.E. Cybersecurity');
@@ -78,8 +79,47 @@ export const StudentsPage: React.FC = () => {
     return matchesSearch && matchesYear;
   });
 
-  const addStudentMutation = useMutation({
-    mutationFn: async () => {
+  const openEditModal = (student: any) => {
+    setEditingStudent(student);
+    setRegisterNumber(student.register_number);
+    setName(student.name);
+    setProgramme(student.programme || 'B.E. Cybersecurity');
+    setCurrentYear(String(student.current_year || 2));
+    setCurrentSemester(String(student.current_semester || 3));
+    setBatch(student.batch || '2024-2028');
+  };
+
+  const handleSaveStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editingStudent) {
+      // Edit existing student
+      const updated = {
+        ...editingStudent,
+        register_number: registerNumber,
+        name,
+        programme,
+        current_year: Number(currentYear),
+        current_semester: Number(currentSemester),
+        batch,
+      };
+
+      try {
+        await api.put(`/api/students/${editingStudent.student_id}`, {
+          registerNumber,
+          name,
+          programme,
+          currentYear: Number(currentYear),
+          currentSemester: Number(currentSemester),
+          batch,
+        });
+      } catch {}
+
+      setLocalStudents(prev => prev.map(s => s.student_id === editingStudent.student_id ? updated : s));
+      toast.success(`Student ${registerNumber} updated successfully!`);
+      setEditingStudent(null);
+    } else {
+      // Add new student
       const newStudent = {
         student_id: `custom_${Date.now()}`,
         register_number: registerNumber,
@@ -89,6 +129,7 @@ export const StudentsPage: React.FC = () => {
         current_semester: Number(currentSemester),
         batch,
       };
+
       try {
         await api.post('/api/students', {
           registerNumber,
@@ -100,17 +141,16 @@ export const StudentsPage: React.FC = () => {
           admissionYear: 2024,
         });
       } catch {}
+
       setLocalStudents(prev => [newStudent, ...prev]);
-      return newStudent;
-    },
-    onSuccess: () => {
       toast.success(`Student ${registerNumber} created with default password "123"!`);
       setIsAddModalOpen(false);
-      setRegisterNumber('');
-      setName('');
-      qc.invalidateQueries({ queryKey: ['students-list'] });
-    },
-  });
+    }
+
+    setRegisterNumber('');
+    setName('');
+    qc.invalidateQueries({ queryKey: ['students-list'] });
+  };
 
   const deleteStudent = (studentId: string, regNo: string) => {
     if (confirm(`Delete student ${regNo}?`)) {
@@ -131,10 +171,15 @@ export const StudentsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Student Roster ({filteredStudents.length} Students)</h1>
-          <p className="text-gray-400 text-sm">2nd Year (CS2001-CS2049) & 3rd Year (CS3001-CS3048) · Default Password: <span className="text-cyan-400 font-mono">123</span></p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & reset student credentials</p>
         </div>
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            setEditingStudent(null);
+            setRegisterNumber('');
+            setName('');
+            setIsAddModalOpen(true);
+          }}
           className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
         >
           <UserPlus className="w-4 h-4" />
@@ -169,7 +214,7 @@ export const StudentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Student List Table */}
+      {/* Student List Table with Edit Action */}
       <div className="glass-card rounded-2xl overflow-hidden">
         {!filteredStudents.length ? (
           <div className="p-12 text-center text-gray-500">No students match your filter.</div>
@@ -196,6 +241,13 @@ export const StudentsPage: React.FC = () => {
                     <td className="p-4 text-gray-400 text-xs">{s.batch}</td>
                     <td className="p-4 text-right space-x-2">
                       <button
+                        onClick={() => openEditModal(s)}
+                        className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors"
+                        title="Edit Student Info"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => resetPassword(s.register_number.toLowerCase())}
                         className="p-2 hover:bg-yellow-500/10 text-yellow-400 rounded-lg transition-colors"
                         title="Reset password to 123"
@@ -218,19 +270,21 @@ export const StudentsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Add Student Modal */}
-      {isAddModalOpen && (
+      {/* Add / Edit Student Modal */}
+      {(isAddModalOpen || editingStudent) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-2xl space-y-4 border border-cyan-500/30 animate-slide-up">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-cyan-400" />
-              Add New Student
+              {editingStudent ? <Edit2 className="w-5 h-5 text-cyan-400" /> : <UserPlus className="w-5 h-5 text-cyan-400" />}
+              {editingStudent ? `Edit Student: ${editingStudent.register_number}` : 'Add New Student'}
             </h2>
-            <p className="text-xs text-gray-400">Default login password will be set to <span className="font-mono text-cyan-400">123</span>.</p>
+            <p className="text-xs text-gray-400">
+              {editingStudent ? 'Update registration number, full name, programme, year, semester, and batch.' : 'Default login password will be set to 123.'}
+            </p>
 
-            <form onSubmit={e => { e.preventDefault(); addStudentMutation.mutate(); }} className="space-y-3 text-sm">
+            <form onSubmit={handleSaveStudent} className="space-y-3 text-sm">
               <div>
-                <label className="block text-xs text-gray-300 mb-1">Register Number (e.g. CS2050)</label>
+                <label className="block text-xs text-gray-300 mb-1">Register Number (Reg No)</label>
                 <input
                   type="text"
                   required
@@ -253,6 +307,18 @@ export const StudentsPage: React.FC = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs text-gray-300 mb-1">Programme / Branch</label>
+                <input
+                  type="text"
+                  required
+                  value={programme}
+                  onChange={e => setProgramme(e.target.value)}
+                  placeholder="B.E. Cybersecurity"
+                  className="input-field"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Current Year</label>
@@ -267,30 +333,36 @@ export const StudentsPage: React.FC = () => {
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Current Semester</label>
                   <select value={currentSemester} onChange={e => setCurrentSemester(e.target.value)} className="input-field">
-                    <option value="1">Sem 1</option>
-                    <option value="2">Sem 2</option>
-                    <option value="3">Sem 3</option>
-                    <option value="4">Sem 4</option>
-                    <option value="5">Sem 5</option>
-                    <option value="6">Sem 6</option>
+                    {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={String(s)}>Sem {s}</option>)}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-300 mb-1">Batch Cycle</label>
+                <input
+                  type="text"
+                  required
+                  value={batch}
+                  onChange={e => setBatch(e.target.value)}
+                  placeholder="2024-2028"
+                  className="input-field"
+                />
               </div>
 
               <div className="flex gap-3 pt-4 justify-end">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={() => { setIsAddModalOpen(false); setEditingStudent(null); }}
                   className="btn-secondary text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={addStudentMutation.isPending}
                   className="btn-primary text-xs"
                 >
-                  Save Student
+                  {editingStudent ? 'Save Changes' : 'Create Student'}
                 </button>
               </div>
             </form>

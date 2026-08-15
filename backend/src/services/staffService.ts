@@ -53,6 +53,38 @@ export async function createStaff(input: CreateStaffInput, createdByUserId: stri
   }
 }
 
+export async function updateStaff(staffId: string, input: Partial<CreateStaffInput>) {
+  const staff = await pool.query('SELECT user_id FROM staff WHERE staff_id = $1', [staffId]);
+  if (staff.rows.length === 0) throw new AppErr('Staff member not found', 404);
+
+  const userId = staff.rows[0].user_id;
+
+  if (input.employeeId || input.name || input.designation) {
+    await pool.query(
+      `UPDATE staff
+       SET employee_id = COALESCE($1, employee_id),
+           name = COALESCE($2, name),
+           designation = COALESCE($3, designation),
+           updated_at = NOW()
+       WHERE staff_id = $4`,
+      [input.employeeId, input.name, input.designation, staffId]
+    );
+  }
+
+  if (input.email || input.employeeId) {
+    await pool.query(
+      `UPDATE users
+       SET email = COALESCE($1, email),
+           username = COALESCE($2, username),
+           updated_at = NOW()
+       WHERE user_id = $3`,
+      [input.email, input.employeeId ? input.employeeId.toLowerCase() : null, userId]
+    );
+  }
+
+  return getStaffById(staffId);
+}
+
 export async function deleteStaff(staffId: string) {
   const staff = await pool.query('SELECT user_id FROM staff WHERE staff_id = $1', [staffId]);
   if (staff.rows[0]?.user_id) {
