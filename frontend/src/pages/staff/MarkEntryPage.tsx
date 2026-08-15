@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Send, ChevronDown, CheckCircle, Award, BookOpen, Clock, Smartphone } from 'lucide-react';
+import { Save, Send, ChevronDown, CheckCircle, Award, BookOpen, Clock, Smartphone, Target } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -41,6 +41,7 @@ const DEFAULT_EXAMS = [
 export const MarkEntryPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState(DEFAULT_SUBJECTS[0].subject_id);
   const [selectedExam, setSelectedExam] = useState(DEFAULT_EXAMS[0].exam_id);
+  const [maxMarksScale, setMaxMarksScale] = useState<number>(50);
   const [marks, setMarks] = useState<Record<string, MarkEntry>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -64,6 +65,15 @@ export const MarkEntryPage: React.FC = () => {
   const subjectsList = assignments?.length ? assignments : DEFAULT_SUBJECTS;
   const examsList = examsData?.length ? examsData : DEFAULT_EXAMS;
   const studentsList = apiStudents?.length ? apiStudents : ALL_STUDENTS;
+
+  const handleExamChange = (examId: string) => {
+    setSelectedExam(examId);
+    setIsSubmitted(false);
+    const selectedObj = examsList.find((e: any) => e.exam_id === examId);
+    if (selectedObj?.maximum_marks) {
+      setMaxMarksScale(Number(selectedObj.maximum_marks));
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -96,7 +106,7 @@ export const MarkEntryPage: React.FC = () => {
     },
     onSuccess: () => {
       setIsSubmitted(true);
-      toast.success('Marks submitted to HOD Admin for verification & parent dispatch!');
+      toast.success(`Marks out of ${maxMarksScale} submitted to HOD Admin for verification & parent dispatch!`);
     },
   });
 
@@ -108,14 +118,13 @@ export const MarkEntryPage: React.FC = () => {
   };
 
   const selectedExamObj = examsList.find((e: any) => e.exam_id === selectedExam) || DEFAULT_EXAMS[0];
-  const selectedSubjectObj = subjectsList.find((s: any) => s.subject_id === selectedSubject) || DEFAULT_SUBJECTS[0];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient mb-1">Examination Mark Entry</h1>
-          <p className="text-gray-400 text-sm">Select course and exam to enter internal/semester marks for all 97 students</p>
+          <p className="text-gray-400 text-sm">Select course and exam assessment (Out of 50 or 100 Marks) for all 97 students</p>
         </div>
 
         {isSubmitted && (
@@ -126,8 +135,8 @@ export const MarkEntryPage: React.FC = () => {
         )}
       </div>
 
-      {/* Select Subject and Select Exam Controls */}
-      <div className="glass-card p-6 rounded-2xl border border-cyan-500/20">
+      {/* Select Subject, Select Exam, and Max Marks Controls */}
+      <div className="glass-card p-6 rounded-2xl border border-cyan-500/20 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -151,22 +160,46 @@ export const MarkEntryPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-semibold text-purple-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Award className="w-4 h-4" /> 2. Select Examination
+              <Award className="w-4 h-4" /> 2. Select Examination Assessment
             </label>
             <div className="relative">
               <select
                 value={selectedExam}
-                onChange={e => { setSelectedExam(e.target.value); setIsSubmitted(false); }}
+                onChange={e => handleExamChange(e.target.value)}
                 className="input-field w-full text-sm appearance-none font-medium bg-surface-900"
               >
                 {examsList.map((e: any) => (
                   <option key={e.exam_id} value={e.exam_id}>
-                    {e.exam_name} (Max Marks: {e.maximum_marks})
+                    {e.exam_name} (Default Max: {e.maximum_marks} Marks)
                   </option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+          </div>
+        </div>
+
+        {/* 50 vs 100 Marks Toggle Option */}
+        <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+            <Target className="w-4 h-4 text-yellow-400" /> Select Examination Max Marks Scale:
+          </span>
+
+          <div className="flex items-center gap-3">
+            {[50, 100].map(scale => (
+              <button
+                key={scale}
+                type="button"
+                onClick={() => setMaxMarksScale(scale)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                  maxMarksScale === scale
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md shadow-cyan-500/10 scale-105'
+                    : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                🎯 {scale} Marks Maximum
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -176,7 +209,7 @@ export const MarkEntryPage: React.FC = () => {
         <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
           <span className="text-sm font-semibold text-white">Student Roster ({studentsList.length} Students)</span>
           <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20">
-            Max Marks Allowed: {selectedExamObj.maximum_marks}
+            Maximum Marks Scale: Out of {maxMarksScale}
           </span>
         </div>
 
@@ -187,7 +220,7 @@ export const MarkEntryPage: React.FC = () => {
                 <th className="p-4">Reg. Number</th>
                 <th className="p-4">Student Full Name</th>
                 <th className="p-4 text-center">Mark Absent</th>
-                <th className="p-4 text-center">Marks Obtained (Out of {selectedExamObj.maximum_marks})</th>
+                <th className="p-4 text-center">Marks Obtained (Out of {maxMarksScale})</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-sm">
@@ -209,12 +242,12 @@ export const MarkEntryPage: React.FC = () => {
                       <input
                         type="number"
                         min={0}
-                        max={selectedExamObj.maximum_marks}
+                        max={maxMarksScale}
                         disabled={entry.isAbsent}
                         value={entry.marksObtained}
                         onChange={e => updateMark(s.student_id, 'marksObtained', e.target.value)}
                         className="input-field w-28 text-center font-mono font-bold text-white disabled:opacity-30 disabled:bg-transparent"
-                        placeholder="—"
+                        placeholder={`0-${maxMarksScale}`}
                       />
                     </td>
                   </tr>
@@ -227,7 +260,7 @@ export const MarkEntryPage: React.FC = () => {
         <div className="p-4 flex flex-col sm:flex-row gap-3 justify-end border-t border-white/10 bg-surface-900 items-center">
           <span className="text-xs text-gray-400 flex items-center gap-1.5 mr-auto">
             <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-            Upon HOD Approval, marks will be automatically sent to parents via Meta WhatsApp Cloud API
+            Upon HOD Approval, marks (out of {maxMarksScale}) will be automatically sent to parents via Meta WhatsApp Cloud API
           </span>
 
           <button
