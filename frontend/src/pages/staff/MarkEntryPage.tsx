@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Send, ChevronDown, CheckCircle, Award, BookOpen } from 'lucide-react';
+import { Save, Send, ChevronDown, CheckCircle, Award, BookOpen, Clock, Smartphone } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -42,6 +42,8 @@ export const MarkEntryPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState(DEFAULT_SUBJECTS[0].subject_id);
   const [selectedExam, setSelectedExam] = useState(DEFAULT_EXAMS[0].exam_id);
   const [marks, setMarks] = useState<Record<string, MarkEntry>>({});
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
   const qc = useQueryClient();
 
   const { data: assignments } = useQuery({
@@ -92,7 +94,10 @@ export const MarkEntryPage: React.FC = () => {
       } catch {}
       return true;
     },
-    onSuccess: () => toast.success('Marks submitted for HOD approval!'),
+    onSuccess: () => {
+      setIsSubmitted(true);
+      toast.success('Marks submitted to HOD Admin for verification & parent dispatch!');
+    },
   });
 
   const updateMark = (studentId: string, field: keyof MarkEntry, value: unknown) => {
@@ -103,12 +108,22 @@ export const MarkEntryPage: React.FC = () => {
   };
 
   const selectedExamObj = examsList.find((e: any) => e.exam_id === selectedExam) || DEFAULT_EXAMS[0];
+  const selectedSubjectObj = subjectsList.find((s: any) => s.subject_id === selectedSubject) || DEFAULT_SUBJECTS[0];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-white heading-gradient mb-2">Examination Mark Entry</h1>
-        <p className="text-gray-400">Select course and exam to enter internal/semester marks for all 97 students</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white heading-gradient mb-1">Examination Mark Entry</h1>
+          <p className="text-gray-400 text-sm">Select course and exam to enter internal/semester marks for all 97 students</p>
+        </div>
+
+        {isSubmitted && (
+          <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+            SUBMITTED TO HOD FOR APPROVAL
+          </span>
+        )}
       </div>
 
       {/* Select Subject and Select Exam Controls */}
@@ -121,7 +136,7 @@ export const MarkEntryPage: React.FC = () => {
             <div className="relative">
               <select
                 value={selectedSubject}
-                onChange={e => setSelectedSubject(e.target.value)}
+                onChange={e => { setSelectedSubject(e.target.value); setIsSubmitted(false); }}
                 className="input-field w-full text-sm appearance-none font-medium bg-surface-900"
               >
                 {subjectsList.map((a: any) => (
@@ -141,7 +156,7 @@ export const MarkEntryPage: React.FC = () => {
             <div className="relative">
               <select
                 value={selectedExam}
-                onChange={e => setSelectedExam(e.target.value)}
+                onChange={e => { setSelectedExam(e.target.value); setIsSubmitted(false); }}
                 className="input-field w-full text-sm appearance-none font-medium bg-surface-900"
               >
                 {examsList.map((e: any) => (
@@ -209,7 +224,12 @@ export const MarkEntryPage: React.FC = () => {
           </table>
         </div>
 
-        <div className="p-4 flex flex-col sm:flex-row gap-3 justify-end border-t border-white/10 bg-surface-900">
+        <div className="p-4 flex flex-col sm:flex-row gap-3 justify-end border-t border-white/10 bg-surface-900 items-center">
+          <span className="text-xs text-gray-400 flex items-center gap-1.5 mr-auto">
+            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+            Upon HOD Approval, marks will be automatically sent to parents via Meta WhatsApp Cloud API
+          </span>
+
           <button
             type="button"
             onClick={() => saveMutation.mutate()}
