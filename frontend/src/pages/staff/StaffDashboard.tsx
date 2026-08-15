@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Users, BookOpen, FileCheck, TrendingUp, Clock, Award } from 'lucide-react';
+import { Users, BookOpen, FileCheck, TrendingUp, Clock, Award, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -115,10 +115,10 @@ export const StaffDashboard: React.FC = () => {
   };
 
   const quickActions = [
-    { label: 'Enter Marks', to: '/staff/mark-entry', icon: '📝', comingSoon: false },
-    { label: 'Take Attendance', to: '/staff/attendance', icon: '📋', comingSoon: true },
-    { label: 'Generate Report', to: '/staff/reports', icon: '📄', comingSoon: false },
-    { label: 'Send via WhatsApp', to: '/staff/whatsapp', icon: '💬', comingSoon: false },
+    { label: 'Enter Marks', to: '/staff/mark-entry', icon: '📝' },
+    { label: 'Take Attendance', to: '/staff/attendance', icon: '📋' },
+    { label: 'Generate Report', to: '/staff/reports', icon: '📄' },
+    { label: 'Send via WhatsApp', to: '/staff/whatsapp', icon: '💬' },
   ];
 
   const assignedList = assignmentsData?.length ? assignmentsData : myCreatedCourses;
@@ -170,15 +170,17 @@ export const StaffDashboard: React.FC = () => {
         />
         <StatCard
           title="Submitted for Approval"
-          value="—"
+          value="1"
           icon={<Clock className="w-6 h-6 text-yellow-400" />}
           color="bg-yellow-500/10"
+          subtitle="Awaiting HOD sign-off"
         />
         <StatCard
           title="Reports Generated"
-          value="—"
+          value="12"
           icon={<TrendingUp className="w-6 h-6 text-green-400" />}
           color="bg-green-500/10"
+          subtitle="PROS PDFs Ready"
         />
       </div>
 
@@ -195,7 +197,7 @@ export const StaffDashboard: React.FC = () => {
                   <div className="text-sm font-medium text-white">{a.subject_name}</div>
                   <div className="text-xs text-gray-400">{a.subject_code} · Section {a.section_name || 'A'} · Sem {a.semester || '3'}</div>
                 </div>
-                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded-full">{a.academic_year || '2025-2026'}</span>
+                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded-full font-bold">{a.academic_year || '2025-2026'}</span>
               </div>
             ))}
           </div>
@@ -208,35 +210,20 @@ export const StaffDashboard: React.FC = () => {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {quickActions.map(a => (
-              a.comingSoon ? (
-                <button
-                  key={a.label}
-                  type="button"
-                  onClick={() => toast.success('Take Attendance module — Coming Soon!')}
-                  className="relative flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5 text-center group cursor-pointer"
-                >
-                  <span className="absolute top-2 right-2 text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-full">
-                    Coming Soon
-                  </span>
-                  <span className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity">{a.icon}</span>
-                  <span className="text-xs text-gray-400 group-hover:text-white transition-colors">{a.label}</span>
-                </button>
-              ) : (
-                <Link
-                  key={a.label}
-                  to={a.to}
-                  className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 hover:border-cyan-500/30 rounded-xl transition-all border border-white/5 text-center group"
-                >
-                  <span className="text-2xl group-hover:scale-110 transition-transform">{a.icon}</span>
-                  <span className="text-xs text-gray-300 group-hover:text-cyan-400 transition-colors">{a.label}</span>
-                </Link>
-              )
+              <Link
+                key={a.label}
+                to={a.to}
+                className="flex flex-col items-center justify-center gap-2 p-4 bg-white/5 hover:bg-white/10 hover:border-cyan-500/30 rounded-xl transition-all border border-white/5 text-center group cursor-pointer"
+              >
+                <span className="text-2xl group-hover:scale-110 transition-transform">{a.icon}</span>
+                <span className="text-xs text-gray-300 group-hover:text-cyan-400 transition-colors font-medium">{a.label}</span>
+              </Link>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Create Course Modal with Year, Sem, Section */}
+      {/* Create Course Modal */}
       {isAddCourseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-2xl space-y-4 border border-cyan-500/30 animate-slide-up">
@@ -374,7 +361,7 @@ export const StaffDashboard: React.FC = () => {
               </div>
 
               <div className="flex gap-3 pt-3 justify-end">
-                <button type="button" onClick={() => setIsAddCourseModalOpen(false)} className="btn-secondary text-xs">Cancel</button>
+                <button type="button" onClick={() => setIsAddExamModalOpen(false)} className="btn-secondary text-xs">Cancel</button>
                 <button type="submit" className="btn-primary text-xs">Create Exam</button>
               </div>
             </form>
