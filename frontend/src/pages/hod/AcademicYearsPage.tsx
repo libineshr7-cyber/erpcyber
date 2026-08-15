@@ -59,9 +59,9 @@ export const AcademicYearsPage: React.FC = () => {
   }, [activeYearId]);
 
   // Form State
-  const [label, setLabel] = useState('2025-2026');
-  const [startDate, setStartDate] = useState('2025-06-01');
-  const [endDate, setEndDate] = useState('2026-05-31');
+  const [label, setLabel] = useState('');
+  const [startDate, setStartDate] = useState('2026-06-01');
+  const [endDate, setEndDate] = useState('2027-05-31');
 
   const qc = useQueryClient();
 
@@ -70,25 +70,31 @@ export const AcademicYearsPage: React.FC = () => {
     queryFn: () => api.get('/api/hod/academic-years').then(r => r.data.data || []).catch(() => null),
   });
 
-  const rawYears = years?.length ? years : [...localYears, ...DEFAULT_YEARS];
+  const rawYears = [...DEFAULT_YEARS, ...localYears, ...(years || [])];
 
   // Merge edits directly on top of raw items so modifications ALWAYS stick permanently!
-  const baseYears = rawYears.map((y: any) => {
+  const mergedMap = new Map();
+  rawYears.forEach((y: any) => {
     const key = y.academic_year_id || y.label;
     const edited = editedYearsMap[key] || editedYearsMap[y.label] || y;
-    return {
+    mergedMap.set(y.label, {
       ...edited,
-      is_current: (edited.academic_year_id || edited.label) === activeYearId || edited.is_current && !activeYearId,
-    };
+      is_current: (edited.academic_year_id || edited.label) === activeYearId || (edited.is_current && !activeYearId),
+    });
   });
 
-  const allMerged = [...localYears.map(y => editedYearsMap[y.label] || y), ...baseYears];
-  const uniqueMap = new Map();
-  allMerged.forEach(item => uniqueMap.set(item.label || item.academic_year_id, item));
-  const uniqueYears = Array.from(uniqueMap.values());
+  const uniqueYears = Array.from(mergedMap.values());
 
   // Filter out deleted academic years permanently
   const activeYears = uniqueYears.filter(y => !deletedYearIds.has(y.academic_year_id) && !deletedYearIds.has(y.label));
+
+  const openAddModal = () => {
+    setEditingYear(null);
+    setLabel('2027-2028');
+    setStartDate('2027-06-01');
+    setEndDate('2028-05-31');
+    setIsAddModalOpen(true);
+  };
 
   const openEditModal = (y: any) => {
     setEditingYear(y);
@@ -156,7 +162,7 @@ export const AcademicYearsPage: React.FC = () => {
         setLocalYears(updatedLocal);
         localStorage.setItem('erp_custom_academic_years', JSON.stringify(updatedLocal));
 
-        toast.success(`Academic Year ${cleanLabel} created permanently!`);
+        toast.success(`Academic Year ${cleanLabel} created successfully!`);
         setIsAddModalOpen(false);
       }
     } finally {
@@ -280,11 +286,7 @@ export const AcademicYearsPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => {
-              setEditingYear(null);
-              setLabel('2026-2027');
-              setIsAddModalOpen(true);
-            }}
+            onClick={openAddModal}
             className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
           >
             <Calendar className="w-4 h-4" />
@@ -406,7 +408,7 @@ export const AcademicYearsPage: React.FC = () => {
                   disabled={isSaving}
                   className="btn-primary text-xs disabled:opacity-50"
                 >
-                  {isSaving ? 'Saving...' : editingYear ? 'Save Changes' : 'Save Session'}
+                  {isSaving ? 'Saving...' : editingYear ? 'Save Changes' : 'Create Academic Year'}
                 </button>
               </div>
             </form>
