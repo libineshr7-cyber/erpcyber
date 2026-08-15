@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Award, Calendar, FileText, CheckCircle2, Megaphone, User, Download, ExternalLink } from 'lucide-react';
+import { Award, Calendar, FileText, Megaphone, User, Download, ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../api/client';
 
@@ -40,7 +40,7 @@ export const StudentDashboard: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            to="/student/reports"
+            to="/student/marks"
             className="btn-primary flex items-center justify-center gap-2 text-xs py-2.5 px-4 shadow-lg shadow-cyan-500/20"
           >
             <Download className="w-4 h-4" />
@@ -57,7 +57,7 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="glass-card p-6 rounded-2xl">
           <div className="flex items-center justify-between mb-2">
             <span className="text-gray-400 text-sm">Enrolled Subjects</span>
@@ -69,20 +69,11 @@ export const StudentDashboard: React.FC = () => {
 
         <div className="glass-card p-6 rounded-2xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm">Overall Attendance</span>
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div className="text-3xl font-bold text-emerald-400">88.5%</div>
-          <div className="text-xs text-emerald-400 mt-1">Eligible for Exams</div>
-        </div>
-
-        <div className="glass-card p-6 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
             <span className="text-gray-400 text-sm">PROS Report Status</span>
             <FileText className="w-5 h-5 text-purple-400" />
           </div>
           <div className="text-xl font-bold text-purple-400 mt-1">READY</div>
-          <div className="text-xs text-gray-400 mt-1">3 Reports Available</div>
+          <div className="text-xs text-gray-400 mt-1">Official PROS Cards Available</div>
         </div>
 
         <div className="glass-card p-6 rounded-2xl">
