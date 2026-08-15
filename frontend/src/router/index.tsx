@@ -17,6 +17,7 @@ import { SubjectsPage } from '../pages/hod/SubjectsPage';
 import { ExamsPage } from '../pages/hod/ExamsPage';
 import { AcademicYearsPage } from '../pages/hod/AcademicYearsPage';
 import { MarkApprovalPage } from '../pages/hod/MarkApprovalPage';
+import { WhatsAppParentsPage } from '../pages/hod/WhatsAppParentsPage';
 import { SecurityCenterPage } from '../pages/hod/SecurityCenterPage';
 import { AuditLogsPage } from '../pages/hod/AuditLogsPage';
 import { EventsManagePage } from '../pages/hod/EventsManagePage';
@@ -99,6 +100,7 @@ const router = createHashRouter([
       { path: 'exams', element: <ExamsPage /> },
       { path: 'academic-years', element: <AcademicYearsPage /> },
       { path: 'mark-approval', element: <MarkApprovalPage /> },
+      { path: 'whatsapp-parents', element: <WhatsAppParentsPage /> },
       { path: 'events', element: <EventsManagePage /> },
       { path: 'announcements', element: <HodAnnouncementsPage /> },
       { path: 'security', element: <SecurityCenterPage /> },

@@ -17,6 +17,7 @@ import {
   ListCheck,
   User,
   ShieldAlert,
+  Smartphone,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -31,6 +32,7 @@ export const Sidebar: React.FC = () => {
     { to: '/hod/exams', label: 'Exams', icon: Award },
     { to: '/hod/academic-years', label: 'Academic Years', icon: Calendar },
     { to: '/hod/mark-approval', label: 'Mark Approval', icon: FileCheck },
+    { to: '/hod/whatsapp-parents', label: 'Parent WhatsApp', icon: Smartphone },
     { to: '/hod/events', label: 'Manage Events', icon: Calendar },
     { to: '/hod/announcements', label: 'Announcements', icon: Megaphone },
     { to: '/hod/security', label: 'Security Center', icon: ShieldAlert },
