@@ -4,6 +4,49 @@ import { useQuery } from '@tanstack/react-query';
 import { UserPlus, UserCheck, BookOpen, ShieldAlert, Award, FileCheck, Calendar, Megaphone, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 
+// Seeded Base Constants matching module pages
+const SEEDED_STUDENT_COUNT = 97;
+
+const DEFAULT_STAFF = [
+  { staff_id: 'st_1', employee_id: 'ST001' },
+  { staff_id: 'st_2', employee_id: 'ST002' },
+  { staff_id: 'st_3', employee_id: 'ST003' },
+  { staff_id: 'st_4', employee_id: 'ST004' },
+  { staff_id: 'st_5', employee_id: 'ST005' },
+  { staff_id: 'st_6', employee_id: 'ST006' },
+  { staff_id: 'st_7', employee_id: 'ST007' },
+];
+
+const DEFAULT_SUBJECTS = [
+  { subject_id: 'sub_1', subject_code: 'CS101' },
+  { subject_id: 'sub_2', subject_code: 'CS102' },
+  { subject_id: 'sub_3', subject_code: 'CS201' },
+  { subject_id: 'sub_4', subject_code: 'CS202' },
+  { subject_id: 'sub_5', subject_code: 'CS301' },
+  { subject_id: 'sub_6', subject_code: 'CS302' },
+  { subject_id: 'sub_7', subject_code: 'CS401' },
+  { subject_id: 'sub_8', subject_code: 'CS402' },
+];
+
+const DEFAULT_EXAMS = [
+  { exam_id: 'ex_1', exam_code: 'IAT1' },
+  { exam_id: 'ex_2', exam_code: 'IAT2' },
+  { exam_id: 'ex_3', exam_code: 'MDL1' },
+  { exam_id: 'ex_4', exam_code: 'SEM1' },
+];
+
+const DEFAULT_EVENTS = [
+  { event_id: 'ev_1', title: 'National Cyber CTF Hackathon 2025' },
+  { event_id: 'ev_2', title: 'Workshop on Cloud Security Auditing' },
+  { event_id: 'ev_3', title: 'Guest Lecture: AI in Ethical Hacking' },
+];
+
+const DEFAULT_ANNOUNCEMENTS = [
+  { announcement_id: 'ann_1', title: 'Schedule for Internal Assessment-1 (IAT-1)' },
+  { announcement_id: 'ann_2', title: 'Registration Open for National Cyber CTF' },
+  { announcement_id: 'ann_3', title: 'Circular: Mandatory Attendance 75% Criteria' },
+];
+
 export const HODDashboard: React.FC = () => {
   const [studentCount, setStudentCount] = useState(97);
   const [staffCount, setStaffCount] = useState(7);
@@ -12,50 +55,57 @@ export const HODDashboard: React.FC = () => {
   const [eventCount, setEventCount] = useState(3);
   const [announcementCount, setAnnouncementCount] = useState(3);
 
-  // Real-time counter syncer reading from localStorage + queries
+  // Real-time counter syncer calculating exact active items
   const syncRealtimeCounts = () => {
     try {
+      // 1. Students
       const deletedStudents = new Set(JSON.parse(localStorage.getItem('erp_deleted_students') || '[]'));
       const customStudents = JSON.parse(localStorage.getItem('erp_custom_students') || '[]');
-      setStudentCount(Math.max(0, 97 + customStudents.length - deletedStudents.size));
+      const activeStudentsCount = Math.max(0, SEEDED_STUDENT_COUNT + customStudents.length - deletedStudents.size);
+      setStudentCount(activeStudentsCount);
 
+      // 2. Staff
       const deletedStaff = new Set(JSON.parse(localStorage.getItem('erp_deleted_staff') || '[]'));
       const customStaff = JSON.parse(localStorage.getItem('erp_custom_staff') || '[]');
-      setStaffCount(Math.max(0, 7 + customStaff.length - deletedStaff.size));
+      const rawStaff = [...DEFAULT_STAFF, ...customStaff];
+      const activeStaffList = rawStaff.filter(s => !deletedStaff.has(s.staff_id) && !deletedStaff.has(s.employee_id));
+      setStaffCount(activeStaffList.length);
 
+      // 3. Subjects
       const deletedSubjects = new Set(JSON.parse(localStorage.getItem('erp_deleted_subjects') || '[]'));
       const customSubjects = JSON.parse(localStorage.getItem('erp_custom_subjects') || '[]');
-      setSubjectCount(Math.max(0, 8 + customSubjects.length - deletedSubjects.size));
+      const rawSubjects = [...DEFAULT_SUBJECTS, ...customSubjects];
+      const activeSubjectsList = rawSubjects.filter(s => !deletedSubjects.has(s.subject_id) && !deletedSubjects.has(s.subject_code));
+      setSubjectCount(activeSubjectsList.length);
 
+      // 4. Exams
       const deletedExams = new Set(JSON.parse(localStorage.getItem('erp_deleted_exams') || '[]'));
       const customExams = JSON.parse(localStorage.getItem('erp_custom_exams') || '[]');
-      setExamCount(Math.max(0, 4 + customExams.length - deletedExams.size));
+      const rawExams = [...DEFAULT_EXAMS, ...customExams];
+      const activeExamsList = rawExams.filter(e => !deletedExams.has(e.exam_id) && !deletedExams.has(e.exam_code));
+      setExamCount(activeExamsList.length);
 
+      // 5. Events
       const deletedEvents = new Set(JSON.parse(localStorage.getItem('erp_deleted_events') || '[]'));
       const customEvents = JSON.parse(localStorage.getItem('erp_custom_events') || '[]');
-      setEventCount(Math.max(0, 3 + customEvents.length - deletedEvents.size));
+      const rawEvents = [...DEFAULT_EVENTS, ...customEvents];
+      const activeEventsList = rawEvents.filter(e => !deletedEvents.has(e.event_id) && !deletedEvents.has(e.title));
+      setEventCount(activeEventsList.length);
 
+      // 6. Announcements
       const deletedAnnouncements = new Set(JSON.parse(localStorage.getItem('erp_deleted_announcements') || '[]'));
       const customAnnouncements = JSON.parse(localStorage.getItem('erp_custom_announcements') || '[]');
-      setAnnouncementCount(Math.max(0, 3 + customAnnouncements.length - deletedAnnouncements.size));
+      const rawAnnouncements = [...DEFAULT_ANNOUNCEMENTS, ...customAnnouncements];
+      const activeAnnouncementsList = rawAnnouncements.filter(a => !deletedAnnouncements.has(a.announcement_id) && !deletedAnnouncements.has(a.title));
+      setAnnouncementCount(activeAnnouncementsList.length);
     } catch {}
   };
 
   useEffect(() => {
     syncRealtimeCounts();
-    const interval = setInterval(syncRealtimeCounts, 1500); // Live poll every 1.5s
+    const interval = setInterval(syncRealtimeCounts, 1000); // Live poll every 1s
     return () => clearInterval(interval);
   }, []);
-
-  const { data: studentsData } = useQuery({
-    queryKey: ['students-list'],
-    queryFn: () => api.get('/api/students?limit=1').then(r => r.data).catch(() => null),
-  });
-
-  const { data: staffData } = useQuery({
-    queryKey: ['staff-list'],
-    queryFn: () => api.get('/api/staff?limit=1').then(r => r.data).catch(() => null),
-  });
 
   const { data: pendingMarks } = useQuery({
     queryKey: ['pending-approvals-count'],
@@ -116,7 +166,7 @@ export const HODDashboard: React.FC = () => {
             <UserCheck className="w-5 h-5 text-purple-400" />
           </div>
           <div className="text-3xl font-bold text-white font-mono">{staffCount}</div>
-          <div className="text-xs text-purple-400 mt-1 font-semibold">ST001 to ST007 Live Faculty</div>
+          <div className="text-xs text-purple-400 mt-1 font-semibold">Live Active Faculty</div>
         </Link>
 
         <Link to="/hod/subjects" className="glass-card p-6 rounded-2xl hover:border-cyan-500/30 transition-all block">
