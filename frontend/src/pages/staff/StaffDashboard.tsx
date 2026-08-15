@@ -30,8 +30,8 @@ export const StaffDashboard: React.FC = () => {
   // Form states for Course Creation
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectName, setSubjectName] = useState('');
-  const [subjectType, setSubjectType] = useState('THEORY');
-  const [credits, setCredits] = useState('3');
+  const [subjectType, setSubjectType] = useState('THEORY+PRACTICAL');
+  const [credits, setCredits] = useState('4');
   const [yearOfStudy, setYearOfStudy] = useState('2');
   const [semesterNumber, setSemesterNumber] = useState('3');
   const [sectionName, setSectionName] = useState('A');
@@ -260,9 +260,10 @@ export const StaffDashboard: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Type</label>
-                  <select value={subjectType} onChange={ev => setSubjectType(ev.target.value)} className="input-field">
-                    <option value="THEORY">Theory</option>
-                    <option value="PRACTICAL">Practical</option>
+                  <select value={subjectType} onChange={ev => setSubjectType(ev.target.value)} className="input-field font-semibold text-cyan-300">
+                    <option value="THEORY+PRACTICAL">Theory + Practical</option>
+                    <option value="THEORY">Theory Only</option>
+                    <option value="PRACTICAL">Practical Only</option>
                   </select>
                 </div>
               </div>
@@ -373,7 +374,7 @@ export const StaffDashboard: React.FC = () => {
               </div>
 
               <div className="flex gap-3 pt-3 justify-end">
-                <button type="button" onClick={() => setIsAddExamModalOpen(false)} className="btn-secondary text-xs">Cancel</button>
+                <button type="button" onClick={() => setIsAddCourseModalOpen(false)} className="btn-secondary text-xs">Cancel</button>
                 <button type="submit" className="btn-primary text-xs">Create Exam</button>
               </div>
             </form>

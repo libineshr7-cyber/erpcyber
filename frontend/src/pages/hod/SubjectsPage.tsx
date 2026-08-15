@@ -16,13 +16,13 @@ const DEFAULT_STAFF_MEMBERS = [
 
 const DEFAULT_SUBJECTS = [
   { subject_id: 'sub_1', subject_code: 'CS101', subject_name: 'Fundamentals of Computing', subject_type: 'THEORY', credits: 3, semester_number: 1, year_of_study: 1, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Priya Sharma (ST001)' },
-  { subject_id: 'sub_2', subject_code: 'CS102', subject_name: 'Programming in C', subject_type: 'PRACTICAL', credits: 4, semester_number: 2, year_of_study: 1, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Prof. Rahul Kumar (ST002)' },
+  { subject_id: 'sub_2', subject_code: 'CS102', subject_name: 'Programming in C', subject_type: 'THEORY+PRACTICAL', credits: 4, semester_number: 2, year_of_study: 1, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Prof. Rahul Kumar (ST002)' },
   { subject_id: 'sub_3', subject_code: 'CS201', subject_name: 'Network Security', subject_type: 'THEORY', credits: 4, semester_number: 3, year_of_study: 2, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Priya Sharma (ST001)' },
-  { subject_id: 'sub_4', subject_code: 'CS202', subject_name: 'Operating Systems & Defence', subject_type: 'THEORY', credits: 3, semester_number: 4, year_of_study: 2, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Anand V (ST003)' },
-  { subject_id: 'sub_5', subject_code: 'CS301', subject_name: 'Web Application Security', subject_type: 'PRACTICAL', credits: 4, semester_number: 5, year_of_study: 3, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Prof. Sunita R (ST004)' },
-  { subject_id: 'sub_6', subject_code: 'CS302', subject_name: 'Cryptography & Protocol Analysis', subject_type: 'THEORY', credits: 4, semester_number: 6, year_of_study: 3, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Rajesh Kannan (ST005)' },
+  { subject_id: 'sub_4', subject_code: 'CS202', subject_name: 'Operating Systems & Defence', subject_type: 'THEORY+PRACTICAL', credits: 4, semester_number: 4, year_of_study: 2, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Anand V (ST003)' },
+  { subject_id: 'sub_5', subject_code: 'CS301', subject_name: 'Web Application Security Lab', subject_type: 'PRACTICAL', credits: 3, semester_number: 5, year_of_study: 3, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Prof. Sunita R (ST004)' },
+  { subject_id: 'sub_6', subject_code: 'CS302', subject_name: 'Cryptography & Protocol Analysis', subject_type: 'THEORY+PRACTICAL', credits: 4, semester_number: 6, year_of_study: 3, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Rajesh Kannan (ST005)' },
   { subject_id: 'sub_7', subject_code: 'CS401', subject_name: 'Cloud Security Audit', subject_type: 'THEORY', credits: 4, semester_number: 7, year_of_study: 4, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Prof. Meenakshi S (ST006)' },
-  { subject_id: 'sub_8', subject_code: 'CS402', subject_name: 'Cyber Forensics & Incident Response', subject_type: 'PRACTICAL', credits: 4, semester_number: 8, year_of_study: 4, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Vikramaditya M (ST007)' },
+  { subject_id: 'sub_8', subject_code: 'CS402', subject_name: 'Cyber Forensics & Incident Response', subject_type: 'THEORY+PRACTICAL', credits: 4, semester_number: 8, year_of_study: 4, maximum_marks: 100, passing_marks: 50, assigned_teacher: 'Dr. Vikramaditya M (ST007)' },
 ];
 
 export const SubjectsPage: React.FC = () => {
@@ -37,8 +37,8 @@ export const SubjectsPage: React.FC = () => {
   // Form State for New Subject
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectName, setSubjectName] = useState('');
-  const [subjectType, setSubjectType] = useState('THEORY');
-  const [credits, setCredits] = useState('3');
+  const [subjectType, setSubjectType] = useState('THEORY+PRACTICAL');
+  const [credits, setCredits] = useState('4');
   const [semesterNumber, setSemesterNumber] = useState('3');
   const [yearOfStudy, setYearOfStudy] = useState('2');
   const [maximumMarks, setMaximumMarks] = useState('100');
@@ -111,7 +111,7 @@ export const SubjectsPage: React.FC = () => {
       return newSub;
     },
     onSuccess: () => {
-      toast.success(`Course ${subjectCode.toUpperCase()} created successfully!`);
+      toast.success(`Course ${subjectCode.toUpperCase()} (${subjectType}) created successfully!`);
       setIsAddModalOpen(false);
       setSubjectCode('');
       setSubjectName('');
@@ -125,7 +125,7 @@ export const SubjectsPage: React.FC = () => {
     if (!assigningSubject) return;
 
     const teacher = staffList.find((s: any) => s.employee_id === selectedStaffId || s.staff_id === selectedStaffId) || staffList[0];
-    const teacherNameLabel = `${teacher.name || teacher.name} (${teacher.employee_id || 'ST001'})`;
+    const teacherNameLabel = `${teacher.name} (${teacher.employee_id || 'ST001'})`;
 
     // Save in local state
     setLocalSubjects(prev => prev.map(s => {
@@ -140,13 +140,35 @@ export const SubjectsPage: React.FC = () => {
     qc.invalidateQueries({ queryKey: ['staff-assignments'] });
   };
 
+  const renderSubjectTypeBadge = (type: string) => {
+    if (type === 'THEORY+PRACTICAL' || type === 'THEORY_PRACTICAL') {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-300 border border-cyan-500/30">
+          THEORY + PRACTICAL
+        </span>
+      );
+    }
+    if (type === 'PRACTICAL') {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          PRACTICAL
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+        THEORY
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Curriculum & Subjects ({filteredSubjects.length})</h1>
-          <p className="text-gray-400 text-sm">Organized by Year of Study · Assign subjects to teaching faculty</p>
+          <p className="text-gray-400 text-sm">Course Types: Theory, Practical & Theory+Practical · Organized by Year</p>
         </div>
         <button
           onClick={() => setIsAddModalOpen(true)}
@@ -208,7 +230,7 @@ export const SubjectsPage: React.FC = () => {
                   <th className="p-4">Subject Code</th>
                   <th className="p-4">Subject Name</th>
                   <th className="p-4">Year & Semester</th>
-                  <th className="p-4">Type</th>
+                  <th className="p-4">Subject Type</th>
                   <th className="p-4">Assigned Faculty</th>
                   <th className="p-4 text-right">Assign Action</th>
                 </tr>
@@ -229,9 +251,7 @@ export const SubjectsPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="p-4 text-xs font-semibold">
-                        <span className={`px-2 py-0.5 rounded-full ${sub.subject_type === 'PRACTICAL' ? 'bg-purple-500/10 text-purple-400' : 'bg-cyan-500/10 text-cyan-400'}`}>
-                          {sub.subject_type}
-                        </span>
+                        {renderSubjectTypeBadge(sub.subject_type)}
                       </td>
                       <td className="p-4 text-xs font-medium">
                         {sub.assigned_teacher && sub.assigned_teacher !== 'Unassigned' ? (
@@ -285,9 +305,10 @@ export const SubjectsPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-300 mb-1">Type</label>
-                  <select value={subjectType} onChange={e => setSubjectType(e.target.value)} className="input-field">
-                    <option value="THEORY">Theory</option>
-                    <option value="PRACTICAL">Practical</option>
+                  <select value={subjectType} onChange={e => setSubjectType(e.target.value)} className="input-field font-semibold text-cyan-300">
+                    <option value="THEORY+PRACTICAL">Theory + Practical</option>
+                    <option value="THEORY">Theory Only</option>
+                    <option value="PRACTICAL">Practical Only</option>
                   </select>
                 </div>
               </div>
@@ -299,7 +320,7 @@ export const SubjectsPage: React.FC = () => {
                   required
                   value={subjectName}
                   onChange={e => setSubjectName(e.target.value)}
-                  placeholder="Data Structures & Algorithms"
+                  placeholder="Cryptography & Network Security"
                   className="input-field"
                 />
               </div>
