@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Download, Send, CheckCircle, RefreshCw, X, User, Layers, Calendar, Smartphone, Check } from 'lucide-react';
+import { FileText, Download, Send, CheckCircle, RefreshCw, X, User, Layers, Calendar, Smartphone, Award } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -76,6 +76,7 @@ export const ReportsPage: React.FC = () => {
   const [subjectCountScale, setSubjectCountScale] = useState<5 | 6>(5);
 
   // Metadata Prompts
+  const [examName, setExamName] = useState('IAT-1 Assessment');
   const [reportMonth, setReportMonth] = useState('September 2025');
   const [reportAcademicYear, setReportAcademicYear] = useState('2025 - 2026');
   const [reportAttendanceDate, setReportAttendanceDate] = useState('15-09-2025');
@@ -156,7 +157,10 @@ export const ReportsPage: React.FC = () => {
             <h2 style="margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px;">PRATHYUSHA ENGINEERING COLLEGE</h2>
             <div style="font-size: 13px; font-style: italic; margin-top: 2px; color: #222;">(An Autonomous Institution)</div>
             <h3 style="margin: 8px 0 2px 0; font-size: 15px; font-weight: bold; text-decoration: underline;">PERFORMANCE REVIEW OF STUDENTS (PROS)</h3>
-            <div style="font-size: 13px; font-weight: bold;">
+            <div style="font-size: 13px; font-weight: bold; color: #1e3a8a; margin-top: 2px;">
+              [ ${examName.toUpperCase()} ]
+            </div>
+            <div style="font-size: 13px; font-weight: bold; margin-top: 2px;">
               For the Month of [ <span style="font-weight: normal;">${reportMonth}</span> ] – Academic Year [ <span style="font-weight: normal;">${reportAcademicYear}</span> ]
             </div>
           </div>
@@ -245,7 +249,7 @@ export const ReportsPage: React.FC = () => {
       </html>
     `);
     printWin.document.close();
-    toast.success(`PROS Report generated successfully for ${targetStudents.length} student(s) (${subjectCountScale} Subjects)!`);
+    toast.success(`PROS Report (${examName}) generated successfully for ${targetStudents.length} student(s) (${subjectCountScale} Subjects)!`);
   };
 
   const handleSendToParentAndStudent = () => {
@@ -265,6 +269,7 @@ export const ReportsPage: React.FC = () => {
           report_id: `pros_${Date.now()}_${s.register_number}`,
           register_number: s.register_number,
           student_name: s.name,
+          exam_name: examName,
           month: reportMonth,
           academic_year: reportAcademicYear,
           attendance_pct: getStudentAttendance(s),
@@ -281,7 +286,7 @@ export const ReportsPage: React.FC = () => {
           id: `log_pros_${Date.now()}_${s.register_number}`,
           reg: s.register_number,
           phone: s.parent_phone,
-          template: `PROS Report (${reportMonth}) - ${subjectCountScale} Subjects`,
+          template: `PROS Report (${examName} - ${reportMonth}) - ${subjectCountScale} Subjects`,
           status: 'DELIVERED',
           time: new Date().toLocaleString(),
         }));
@@ -297,13 +302,13 @@ export const ReportsPage: React.FC = () => {
           role: 'STAFF',
           result: 'SUCCESS',
           created_at: new Date().toISOString(),
-          details: `Dispatched PROS PDF Reports to ${studentCount} Parent WhatsApp numbers and Student Portal accounts.`,
+          details: `Dispatched PROS PDF Reports (${examName}) to ${studentCount} Parent WhatsApp numbers and Student Portal accounts.`,
         };
         localStorage.setItem('erp_audit_logs', JSON.stringify([newAudit, ...existingAudit]));
       } catch {}
 
       toast.success(
-        `📱 Real-time Working Dispatch: Delivered PROS PDF Reports to ${studentCount} Parent WhatsApp numbers & Student Accounts!`,
+        `📱 Real-time Working Dispatch: Delivered PROS PDF Reports (${examName}) to ${studentCount} Parent WhatsApp numbers & Student Accounts!`,
         { duration: 6000 }
       );
     }, 1200);
@@ -430,12 +435,26 @@ export const ReportsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Header Metadata Inputs */}
+        {/* Header & Examination Metadata Inputs */}
         <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-2 pt-2">
-          📅 2. Header & Attendance Cut-off Details
+          📝 2. Examination Name, Header & Attendance Cut-off Details
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-yellow-400 uppercase mb-1 flex items-center gap-1">
+              <Award className="w-3.5 h-3.5" /> Examination Name
+            </label>
+            <input
+              type="text"
+              required
+              value={examName}
+              onChange={e => setExamName(e.target.value)}
+              placeholder="IAT-1 Assessment"
+              className="input-field text-sm font-bold text-white"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">For the Month of</label>
             <input
