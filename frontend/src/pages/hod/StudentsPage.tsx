@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Search, Trash2, Key, Filter, Edit2, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Search, Trash2, Key, Filter, Edit2, Download, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
 // Seeded 2nd Year (CS2001-CS2049) & 3rd Year (CS3001-CS3048) student generator for instant UI display
 const generateSeededStudents = () => {
   const list: any[] = [];
-  // 2nd Years
   for (let i = 1; i <= 49; i++) {
     const num = i < 10 ? `0${i}` : `${i}`;
     const reg = `CS20${num}`;
@@ -21,7 +20,6 @@ const generateSeededStudents = () => {
       batch: '2024-2028',
     });
   }
-  // 3rd Years
   for (let i = 1; i <= 48; i++) {
     const num = i < 10 ? `0${i}` : `${i}`;
     const reg = `CS30${num}`;
@@ -45,7 +43,9 @@ export const StudentsPage: React.FC = () => {
   const [yearFilter, setYearFilter] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any | null>(null);
+  
   const [localStudents, setLocalStudents] = useState<any[]>([]);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   // New/Edit Student Form State
   const [registerNumber, setRegisterNumber] = useState('');
@@ -70,10 +70,13 @@ export const StudentsPage: React.FC = () => {
   });
 
   const apiStudents = data?.data || [];
-  const combinedStudents = apiStudents.length > 0 ? apiStudents : [...localStudents, ...SEEDED_STUDENTS];
+  const baseStudents = apiStudents.length > 0 ? apiStudents : [...localStudents, ...SEEDED_STUDENTS];
+
+  // Filter out deleted IDs permanently
+  const activeStudents = baseStudents.filter(s => !deletedIds.has(s.student_id) && !deletedIds.has(s.register_number));
 
   // Apply search & year filtering
-  const filteredStudents = combinedStudents.filter((s: any) => {
+  const filteredStudents = activeStudents.filter((s: any) => {
     const matchesSearch = !search || s.register_number?.toLowerCase().includes(search.toLowerCase()) || s.name?.toLowerCase().includes(search.toLowerCase());
     const matchesYear = !yearFilter || String(s.current_year) === yearFilter;
     return matchesSearch && matchesYear;
@@ -92,11 +95,24 @@ export const StudentsPage: React.FC = () => {
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const cleanReg = registerNumber.trim().toUpperCase();
+
+    if (!editingStudent) {
+      // DUPLICATE CHECK: Disallow adding duplicate register numbers!
+      const isDuplicate = activeStudents.some(
+        s => s.register_number?.toUpperCase() === cleanReg
+      );
+      if (isDuplicate) {
+        toast.error(`Duplicate Error: Student with Register Number "${cleanReg}" already exists!`);
+        return;
+      }
+    }
+
     if (editingStudent) {
       // Edit existing student
       const updated = {
         ...editingStudent,
-        register_number: registerNumber,
+        register_number: cleanReg,
         name,
         programme,
         current_year: Number(currentYear),
@@ -106,7 +122,7 @@ export const StudentsPage: React.FC = () => {
 
       try {
         await api.put(`/api/students/${editingStudent.student_id}`, {
-          registerNumber,
+          registerNumber: cleanReg,
           name,
           programme,
           currentYear: Number(currentYear),
@@ -116,13 +132,13 @@ export const StudentsPage: React.FC = () => {
       } catch {}
 
       setLocalStudents(prev => prev.map(s => s.student_id === editingStudent.student_id ? updated : s));
-      toast.success(`Student ${registerNumber} updated successfully!`);
+      toast.success(`Student ${cleanReg} updated successfully!`);
       setEditingStudent(null);
     } else {
       // Add new student
       const newStudent = {
         student_id: `custom_${Date.now()}`,
-        register_number: registerNumber,
+        register_number: cleanReg,
         name,
         programme,
         current_year: Number(currentYear),
@@ -132,7 +148,7 @@ export const StudentsPage: React.FC = () => {
 
       try {
         await api.post('/api/students', {
-          registerNumber,
+          registerNumber: cleanReg,
           name,
           programme,
           currentYear: Number(currentYear),
@@ -143,7 +159,7 @@ export const StudentsPage: React.FC = () => {
       } catch {}
 
       setLocalStudents(prev => [newStudent, ...prev]);
-      toast.success(`Student ${registerNumber} created with default password "123"!`);
+      toast.success(`Student ${cleanReg} created with default password "123"!`);
       setIsAddModalOpen(false);
     }
 
@@ -153,10 +169,14 @@ export const StudentsPage: React.FC = () => {
   };
 
   const deleteStudent = (studentId: string, regNo: string) => {
-    if (confirm(`Delete student ${regNo}?`)) {
+    if (confirm(`Are you sure you want to permanently delete student ${regNo}?`)) {
       api.delete(`/api/students/${studentId}`).catch(() => {});
-      setLocalStudents(prev => prev.filter(s => s.student_id !== studentId));
-      toast.success(`Student ${regNo} deleted`);
+      
+      // Permanently add to deleted set
+      setDeletedIds(prev => new Set(prev).add(studentId).add(regNo));
+      setLocalStudents(prev => prev.filter(s => s.student_id !== studentId && s.register_number !== regNo));
+      
+      toast.success(`Student ${regNo} deleted successfully`);
     }
   };
 
@@ -165,26 +185,107 @@ export const StudentsPage: React.FC = () => {
     toast.success(`Password for ${username} reset to "123"`);
   };
 
+  const downloadStudentPdf = () => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      toast.error('Please allow popups to download PDF');
+      return;
+    }
+
+    const rowsHtml = filteredStudents.map((s, idx) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-family: monospace; font-weight: bold; color: #0284c7;">${s.register_number}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${s.name}</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${s.programme}</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">Year ${s.current_year} (Sem ${s.current_semester})</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${s.batch}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Student Roster Report - Prathyusha Engineering College</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
+            .header { text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; }
+            .header h1 { margin: 0; color: #0369a1; font-size: 22px; }
+            .header h3 { margin: 5px 0 0 0; color: #475569; font-size: 14px; font-weight: normal; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+            th { background-color: #0284c7; color: white; padding: 10px; border: 1px solid #0284c7; text-align: left; }
+            .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>PRATHYUSHA ENGINEERING COLLEGE</h1>
+            <h3>DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING</h3>
+            <p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: #0e7490;">OFFICIAL STUDENT ROSTER REPORT (${filteredStudents.length} STUDENTS)</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">S.No</th>
+                <th>Register No</th>
+                <th>Student Full Name</th>
+                <th>Programme / Department</th>
+                <th>Year & Semester</th>
+                <th>Batch</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <div>Generated Date: ${new Date().toLocaleDateString()}</div>
+            <div>Head of Department Signature: _______________________</div>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
   return (
     <div className="space-y-6">
-      {/* Top Header with + Add Student Button */}
+      {/* Top Header with + Add Student & Download PDF Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Student Roster ({filteredStudents.length} Students)</h1>
-          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & reset student credentials</p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & export student records</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingStudent(null);
-            setRegisterNumber('');
-            setName('');
-            setIsAddModalOpen(true);
-          }}
-          className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
-        >
-          <UserPlus className="w-4 h-4" />
-          + Add Student
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={downloadStudentPdf}
+            className="btn-secondary flex items-center justify-center gap-2 text-xs py-2.5 px-4"
+          >
+            <Download className="w-4 h-4 text-cyan-400" />
+            Export PDF Report
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingStudent(null);
+              setRegisterNumber('');
+              setName('');
+              setIsAddModalOpen(true);
+            }}
+            className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
+          >
+            <UserPlus className="w-4 h-4" />
+            + Add Student
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -207,14 +308,14 @@ export const StudentsPage: React.FC = () => {
             onChange={e => setYearFilter(e.target.value)}
             className="input-field text-sm"
           >
-            <option value="">All Years ({combinedStudents.length})</option>
+            <option value="">All Years ({activeStudents.length})</option>
             <option value="2">2nd Year (CS2001 - CS2049)</option>
             <option value="3">3rd Year (CS3001 - CS3048)</option>
           </select>
         </div>
       </div>
 
-      {/* Student List Table with Edit Action */}
+      {/* Student List Table */}
       <div className="glass-card rounded-2xl overflow-hidden">
         {!filteredStudents.length ? (
           <div className="p-12 text-center text-gray-500">No students match your filter.</div>
@@ -242,21 +343,21 @@ export const StudentsPage: React.FC = () => {
                     <td className="p-4 text-right space-x-2">
                       <button
                         onClick={() => openEditModal(s)}
-                        className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors"
+                        className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors cursor-pointer"
                         title="Edit Student Info"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => resetPassword(s.register_number.toLowerCase())}
-                        className="p-2 hover:bg-yellow-500/10 text-yellow-400 rounded-lg transition-colors"
+                        className="p-2 hover:bg-yellow-500/10 text-yellow-400 rounded-lg transition-colors cursor-pointer"
                         title="Reset password to 123"
                       >
                         <Key className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => deleteStudent(s.student_id, s.register_number)}
-                        className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
+                        className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors cursor-pointer"
                         title="Delete Student"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -279,7 +380,7 @@ export const StudentsPage: React.FC = () => {
               {editingStudent ? `Edit Student: ${editingStudent.register_number}` : 'Add New Student'}
             </h2>
             <p className="text-xs text-gray-400">
-              {editingStudent ? 'Update registration number, full name, programme, year, semester, and batch.' : 'Default login password will be set to 123.'}
+              {editingStudent ? 'Update registration number, full name, programme, year, semester, and batch.' : 'Duplicates are blocked. Default login password is set to 123.'}
             </p>
 
             <form onSubmit={handleSaveStudent} className="space-y-3 text-sm">
@@ -291,7 +392,7 @@ export const StudentsPage: React.FC = () => {
                   value={registerNumber}
                   onChange={e => setRegisterNumber(e.target.value.toUpperCase())}
                   placeholder="CS2050"
-                  className="input-field"
+                  className="input-field font-mono font-bold text-cyan-400"
                 />
               </div>
 

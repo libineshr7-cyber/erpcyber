@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Search, UserCheck, Edit2, Trash2, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Search, UserCheck, Edit2, Trash2, Download, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -34,6 +34,7 @@ export const SubjectsPage: React.FC = () => {
   const [selectedStaffId, setSelectedStaffId] = useState('ST001');
 
   const [localSubjects, setLocalSubjects] = useState<any[]>([]);
+  const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(new Set());
 
   // Form State for Subject
   const [subjectCode, setSubjectCode] = useState('');
@@ -64,10 +65,13 @@ export const SubjectsPage: React.FC = () => {
   });
 
   const staffList = staffData?.length ? staffData : DEFAULT_STAFF_MEMBERS;
-  const combinedSubjects = apiSubjects?.length ? apiSubjects : [...localSubjects, ...DEFAULT_SUBJECTS];
+  const baseSubjects = apiSubjects?.length ? apiSubjects : [...localSubjects, ...DEFAULT_SUBJECTS];
+
+  // Filter out deleted subjects permanently
+  const activeSubjects = baseSubjects.filter(s => !deletedSubjectIds.has(s.subject_id) && !deletedSubjectIds.has(s.subject_code));
 
   // Filter subjects by search and by year of study
-  const filteredSubjects = combinedSubjects.filter((sub: any) => {
+  const filteredSubjects = activeSubjects.filter((sub: any) => {
     const matchesSearch = !search || sub.subject_code?.toLowerCase().includes(search.toLowerCase()) || sub.subject_name?.toLowerCase().includes(search.toLowerCase());
     
     // Determine year from semester or explicit field
@@ -91,8 +95,19 @@ export const SubjectsPage: React.FC = () => {
 
   const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    const code = subjectCode.toUpperCase();
+    const code = subjectCode.trim().toUpperCase();
     const yr = Number(yearOfStudy);
+
+    if (!editingSubject) {
+      // DUPLICATE CHECK: Disallow adding duplicate subject codes!
+      const isDuplicate = activeSubjects.some(
+        s => s.subject_code?.toUpperCase() === code
+      );
+      if (isDuplicate) {
+        toast.error(`Duplicate Error: Subject code "${code}" already exists!`);
+        return;
+      }
+    }
 
     if (editingSubject) {
       // Modify/Edit existing subject
@@ -160,10 +175,14 @@ export const SubjectsPage: React.FC = () => {
   };
 
   const handleDeleteSubject = (subjectId: string, code: string) => {
-    if (confirm(`Delete course ${code}?`)) {
+    if (confirm(`Are you sure you want to permanently delete course ${code}?`)) {
       api.delete(`/api/subjects/${subjectId}`).catch(() => {});
+
+      // Permanently add to deleted set
+      setDeletedSubjectIds(prev => new Set(prev).add(subjectId).add(code));
       setLocalSubjects(prev => prev.filter(s => s.subject_id !== subjectId && s.subject_code !== code));
-      toast.success(`Course ${code} deleted`);
+
+      toast.success(`Course ${code} deleted successfully`);
     }
   };
 
@@ -184,6 +203,79 @@ export const SubjectsPage: React.FC = () => {
     toast.success(`Assigned ${assigningSubject.subject_code} to ${teacherNameLabel}!`);
     setAssigningSubject(null);
     qc.invalidateQueries({ queryKey: ['staff-assignments'] });
+  };
+
+  const downloadSubjectPdf = () => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      toast.error('Please allow popups to download PDF');
+      return;
+    }
+
+    const rowsHtml = filteredSubjects.map((sub, idx) => {
+      const yr = sub.year_of_study || (sub.semester_number <= 2 ? 1 : sub.semester_number <= 4 ? 2 : sub.semester_number <= 6 ? 3 : 4);
+      return `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; font-family: monospace; font-weight: bold; color: #0284c7;">${sub.subject_code}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${sub.subject_name}</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">Year ${yr} (Sem ${sub.semester_number})</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${sub.subject_type || 'THEORY+PRACTICAL'}</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${sub.assigned_teacher || 'Unassigned'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Curriculum Report - Prathyusha Engineering College</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
+            .header { text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; }
+            .header h1 { margin: 0; color: #0369a1; font-size: 22px; }
+            .header h3 { margin: 5px 0 0 0; color: #475569; font-size: 14px; font-weight: normal; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+            th { background-color: #0284c7; color: white; padding: 10px; border: 1px solid #0284c7; text-align: left; }
+            .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>PRATHYUSHA ENGINEERING COLLEGE</h1>
+            <h3>DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING</h3>
+            <p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: #0369a1;">OFFICIAL CURRICULUM & SUBJECTS REPORT (${filteredSubjects.length} COURSES)</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">S.No</th>
+                <th>Subject Code</th>
+                <th>Subject Name</th>
+                <th>Year & Semester</th>
+                <th>Subject Type</th>
+                <th>Assigned Faculty Member</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <div>Generated Date: ${new Date().toLocaleDateString()}</div>
+            <div>Head of Department Signature: _______________________</div>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   const renderSubjectTypeBadge = (type: string) => {
@@ -214,20 +306,31 @@ export const SubjectsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Curriculum & Subject Management ({filteredSubjects.length})</h1>
-          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete, assign faculty, and filter subjects by year</p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete, assign faculty, and export curriculum reports</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingSubject(null);
-            setSubjectCode('');
-            setSubjectName('');
-            setIsAddModalOpen(true);
-          }}
-          className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
-        >
-          <BookOpen className="w-4 h-4" />
-          + Add Subject
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={downloadSubjectPdf}
+            className="btn-secondary flex items-center justify-center gap-2 text-xs py-2.5 px-4"
+          >
+            <Download className="w-4 h-4 text-cyan-400" />
+            Export Curriculum PDF
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingSubject(null);
+              setSubjectCode('');
+              setSubjectName('');
+              setIsAddModalOpen(true);
+            }}
+            className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
+          >
+            <BookOpen className="w-4 h-4" />
+            + Add Subject
+          </button>
+        </div>
       </div>
 
       {/* Year Separation Navigation Tabs */}
@@ -267,7 +370,7 @@ export const SubjectsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Subjects Table with Edit, Assign & Delete Actions */}
+      {/* Subjects Table */}
       <div className="glass-card rounded-2xl overflow-hidden">
         {isLoading && !filteredSubjects.length ? (
           <div className="p-12 text-center flex justify-center"><div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -317,21 +420,21 @@ export const SubjectsPage: React.FC = () => {
                       <td className="p-4 text-right space-x-1.5">
                         <button
                           onClick={() => openEditSubjectModal(sub)}
-                          className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors"
+                          className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors cursor-pointer"
                           title="Edit / Modify Subject Info"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => { setAssigningSubject(sub); setSelectedStaffId(staffList[0]?.employee_id || 'ST001'); }}
-                          className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg transition-colors"
+                          className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg transition-colors cursor-pointer"
                           title="Assign Faculty Member"
                         >
                           <UserCheck className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteSubject(sub.subject_id, sub.subject_code)}
-                          className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
+                          className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors cursor-pointer"
                           title="Delete Subject"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -354,6 +457,9 @@ export const SubjectsPage: React.FC = () => {
               {editingSubject ? <Edit2 className="w-5 h-5 text-cyan-400" /> : <BookOpen className="w-5 h-5 text-cyan-400" />}
               {editingSubject ? `Edit Subject: ${editingSubject.subject_code}` : 'Add New Curriculum Subject'}
             </h2>
+            <p className="text-xs text-gray-400">
+              {editingSubject ? 'Update subject code, name, year, semester, type, and assigned faculty.' : 'Duplicates are blocked. Subject code must be unique.'}
+            </p>
 
             <form onSubmit={handleSaveSubject} className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
@@ -365,7 +471,7 @@ export const SubjectsPage: React.FC = () => {
                     value={subjectCode}
                     onChange={e => setSubjectCode(e.target.value.toUpperCase())}
                     placeholder="CS201"
-                    className="input-field"
+                    className="input-field font-mono font-bold text-cyan-400"
                   />
                 </div>
                 <div>
