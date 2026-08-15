@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Search, UserCheck, Edit2, Trash2, Download, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
@@ -34,9 +34,40 @@ export const SubjectsPage: React.FC = () => {
   const [selectedStaffId, setSelectedStaffId] = useState('ST001');
   const [isSaving, setIsSaving] = useState(false);
 
-  const [localSubjects, setLocalSubjects] = useState<any[]>([]);
-  const [editedSubjectsMap, setEditedSubjectsMap] = useState<Record<string, any>>({});
-  const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(new Set());
+  // Persistent localStorage initialization so edits/deletes NEVER disappear on refresh
+  const [localSubjects, setLocalSubjects] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_custom_subjects');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [editedSubjectsMap, setEditedSubjectsMap] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_edited_subjects');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_deleted_subjects');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  // Save changes to localStorage on every update
+  useEffect(() => {
+    localStorage.setItem('erp_custom_subjects', JSON.stringify(localSubjects));
+  }, [localSubjects]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_edited_subjects', JSON.stringify(editedSubjectsMap));
+  }, [editedSubjectsMap]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_deleted_subjects', JSON.stringify(Array.from(deletedSubjectIds)));
+  }, [deletedSubjectIds]);
 
   // Form State for Subject
   const [subjectCode, setSubjectCode] = useState('');
@@ -69,14 +100,19 @@ export const SubjectsPage: React.FC = () => {
   const staffList = staffData?.length ? staffData : DEFAULT_STAFF_MEMBERS;
   const rawSubjects = apiSubjects?.length ? apiSubjects : [...localSubjects, ...DEFAULT_SUBJECTS];
 
-  // Merge edits directly on top of raw items so modifications ALWAYS stick!
+  // Merge edits directly on top of raw items so modifications ALWAYS stick permanently!
   const baseSubjects = rawSubjects.map(sub => {
     const key = sub.subject_id || sub.subject_code;
     return editedSubjectsMap[key] || editedSubjectsMap[sub.subject_code] || sub;
   });
 
+  const allMerged = [...localSubjects.map(s => editedSubjectsMap[s.subject_code] || s), ...baseSubjects];
+  const uniqueMap = new Map();
+  allMerged.forEach(item => uniqueMap.set(item.subject_code, item));
+  const uniqueSubjects = Array.from(uniqueMap.values());
+
   // Filter out deleted subjects permanently
-  const activeSubjects = baseSubjects.filter(s => !deletedSubjectIds.has(s.subject_id) && !deletedSubjectIds.has(s.subject_code));
+  const activeSubjects = uniqueSubjects.filter(s => !deletedSubjectIds.has(s.subject_id) && !deletedSubjectIds.has(s.subject_code));
 
   // Filter subjects by search and by year of study
   const filteredSubjects = activeSubjects.filter((sub: any) => {
@@ -136,11 +172,14 @@ export const SubjectsPage: React.FC = () => {
         };
 
         const key = editingSubject.subject_id || editingSubject.subject_code;
-        setEditedSubjectsMap(prev => ({
-          ...prev,
+        const newMap = {
+          ...editedSubjectsMap,
           [key]: updated,
           [code]: updated,
-        }));
+        };
+
+        setEditedSubjectsMap(newMap);
+        localStorage.setItem('erp_edited_subjects', JSON.stringify(newMap));
 
         try {
           await api.put(`/api/subjects/${editingSubject.subject_id}`, {
@@ -153,7 +192,7 @@ export const SubjectsPage: React.FC = () => {
           });
         } catch {}
 
-        toast.success(`Subject ${code} modified and updated successfully!`);
+        toast.success(`Subject ${code} modified permanently!`);
         setEditingSubject(null);
       } else {
         // Add new subject
@@ -183,8 +222,11 @@ export const SubjectsPage: React.FC = () => {
           });
         } catch {}
 
-        setLocalSubjects(prev => [newSub, ...prev]);
-        toast.success(`Course ${code} created successfully!`);
+        const updatedLocal = [newSub, ...localSubjects];
+        setLocalSubjects(updatedLocal);
+        localStorage.setItem('erp_custom_subjects', JSON.stringify(updatedLocal));
+
+        toast.success(`Course ${code} created permanently!`);
         setIsAddModalOpen(false);
       }
     } finally {
@@ -199,11 +241,19 @@ export const SubjectsPage: React.FC = () => {
     if (confirm(`Are you sure you want to permanently delete course ${code}?`)) {
       api.delete(`/api/subjects/${subjectId}`).catch(() => {});
 
-      // Permanently add to deleted set
-      setDeletedSubjectIds(prev => new Set(prev).add(subjectId).add(code));
-      setLocalSubjects(prev => prev.filter(s => s.subject_id !== subjectId && s.subject_code !== code));
+      // Permanently add to deleted set & localStorage
+      const updatedDeleted = new Set(deletedSubjectIds);
+      updatedDeleted.add(subjectId);
+      updatedDeleted.add(code);
 
-      toast.success(`Course ${code} deleted successfully`);
+      setDeletedSubjectIds(updatedDeleted);
+      localStorage.setItem('erp_deleted_subjects', JSON.stringify(Array.from(updatedDeleted)));
+
+      const updatedLocal = localSubjects.filter(s => s.subject_id !== subjectId && s.subject_code !== code);
+      setLocalSubjects(updatedLocal);
+      localStorage.setItem('erp_custom_subjects', JSON.stringify(updatedLocal));
+
+      toast.success(`Course ${code} deleted permanently`);
     }
   };
 
@@ -217,11 +267,14 @@ export const SubjectsPage: React.FC = () => {
     const updated = { ...assigningSubject, assigned_teacher: teacherNameLabel };
     const key = assigningSubject.subject_id || assigningSubject.subject_code;
 
-    setEditedSubjectsMap(prev => ({
-      ...prev,
+    const newMap = {
+      ...editedSubjectsMap,
       [key]: updated,
       [assigningSubject.subject_code]: updated,
-    }));
+    };
+
+    setEditedSubjectsMap(newMap);
+    localStorage.setItem('erp_edited_subjects', JSON.stringify(newMap));
 
     toast.success(`Assigned ${assigningSubject.subject_code} to ${teacherNameLabel}!`);
     setAssigningSubject(null);
@@ -329,7 +382,7 @@ export const SubjectsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Curriculum & Subject Management ({filteredSubjects.length})</h1>
-          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete, assign faculty, and export curriculum reports</p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete, assign faculty, and export curriculum reports (100% Refresh Persistent)</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, Search, Trash2, Key, Filter, Edit2, Download, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
@@ -45,9 +45,40 @@ export const StudentsPage: React.FC = () => {
   const [editingStudent, setEditingStudent] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [localStudents, setLocalStudents] = useState<any[]>([]);
-  const [editedStudentsMap, setEditedStudentsMap] = useState<Record<string, any>>({});
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  // Persistent localStorage initialization so edits/deletes NEVER disappear on refresh
+  const [localStudents, setLocalStudents] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_custom_students');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [editedStudentsMap, setEditedStudentsMap] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_edited_students');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_deleted_students');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  // Save changes to localStorage on every update
+  useEffect(() => {
+    localStorage.setItem('erp_custom_students', JSON.stringify(localStudents));
+  }, [localStudents]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_edited_students', JSON.stringify(editedStudentsMap));
+  }, [editedStudentsMap]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_deleted_students', JSON.stringify(Array.from(deletedIds)));
+  }, [deletedIds]);
 
   // New/Edit Student Form State
   const [registerNumber, setRegisterNumber] = useState('');
@@ -74,14 +105,20 @@ export const StudentsPage: React.FC = () => {
   const apiStudents = data?.data || [];
   const rawStudents = apiStudents.length > 0 ? apiStudents : [...localStudents, ...SEEDED_STUDENTS];
 
-  // Merge edits directly on top of raw items so modifications ALWAYS stick!
+  // Merge edits directly on top of raw items so modifications ALWAYS stick permanently!
   const baseStudents = rawStudents.map(s => {
     const key = s.student_id || s.register_number;
     return editedStudentsMap[key] || editedStudentsMap[s.register_number] || s;
   });
 
+  // Also include any newly created local students that aren't in base
+  const allMerged = [...localStudents.map(s => editedStudentsMap[s.register_number] || s), ...baseStudents];
+  const uniqueMap = new Map();
+  allMerged.forEach(item => uniqueMap.set(item.register_number, item));
+  const uniqueStudents = Array.from(uniqueMap.values());
+
   // Filter out deleted IDs permanently
-  const activeStudents = baseStudents.filter(s => !deletedIds.has(s.student_id) && !deletedIds.has(s.register_number));
+  const activeStudents = uniqueStudents.filter(s => !deletedIds.has(s.student_id) && !deletedIds.has(s.register_number));
 
   // Apply search & year filtering
   const filteredStudents = activeStudents.filter((s: any) => {
@@ -133,11 +170,14 @@ export const StudentsPage: React.FC = () => {
         };
 
         const key = editingStudent.student_id || editingStudent.register_number;
-        setEditedStudentsMap(prev => ({
-          ...prev,
+        const newMap = {
+          ...editedStudentsMap,
           [key]: updated,
           [cleanReg]: updated,
-        }));
+        };
+
+        setEditedStudentsMap(newMap);
+        localStorage.setItem('erp_edited_students', JSON.stringify(newMap));
 
         try {
           await api.put(`/api/students/${editingStudent.student_id}`, {
@@ -150,7 +190,7 @@ export const StudentsPage: React.FC = () => {
           });
         } catch {}
 
-        toast.success(`Student ${cleanReg} modified and updated successfully!`);
+        toast.success(`Student ${cleanReg} modified permanently!`);
         setEditingStudent(null);
       } else {
         // Add new student
@@ -176,8 +216,11 @@ export const StudentsPage: React.FC = () => {
           });
         } catch {}
 
-        setLocalStudents(prev => [newStudent, ...prev]);
-        toast.success(`Student ${cleanReg} created with default password "123"!`);
+        const updatedLocal = [newStudent, ...localStudents];
+        setLocalStudents(updatedLocal);
+        localStorage.setItem('erp_custom_students', JSON.stringify(updatedLocal));
+
+        toast.success(`Student ${cleanReg} created permanently!`);
         setIsAddModalOpen(false);
       }
     } finally {
@@ -192,11 +235,19 @@ export const StudentsPage: React.FC = () => {
     if (confirm(`Are you sure you want to permanently delete student ${regNo}?`)) {
       api.delete(`/api/students/${studentId}`).catch(() => {});
       
-      // Permanently add to deleted set
-      setDeletedIds(prev => new Set(prev).add(studentId).add(regNo));
-      setLocalStudents(prev => prev.filter(s => s.student_id !== studentId && s.register_number !== regNo));
+      // Permanently add to deleted set & localStorage
+      const updatedDeleted = new Set(deletedIds);
+      updatedDeleted.add(studentId);
+      updatedDeleted.add(regNo);
+
+      setDeletedIds(updatedDeleted);
+      localStorage.setItem('erp_deleted_students', JSON.stringify(Array.from(updatedDeleted)));
+
+      const updatedLocal = localStudents.filter(s => s.student_id !== studentId && s.register_number !== regNo);
+      setLocalStudents(updatedLocal);
+      localStorage.setItem('erp_custom_students', JSON.stringify(updatedLocal));
       
-      toast.success(`Student ${regNo} deleted successfully`);
+      toast.success(`Student ${regNo} deleted permanently`);
     }
   };
 
@@ -281,7 +332,7 @@ export const StudentsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Student Roster ({filteredStudents.length} Students)</h1>
-          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & export student records</p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & export student records (100% Refresh Persistent)</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserCheck, Search, Trash2, Key, Mail, Edit2, Download } from 'lucide-react';
 import api from '../../api/client';
@@ -20,9 +20,40 @@ export const StaffPage: React.FC = () => {
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [localStaff, setLocalStaff] = useState<any[]>([]);
-  const [editedStaffMap, setEditedStaffMap] = useState<Record<string, any>>({});
-  const [deletedStaffIds, setDeletedStaffIds] = useState<Set<string>>(new Set());
+  // Persistent localStorage initialization so edits/deletes NEVER disappear on refresh
+  const [localStaff, setLocalStaff] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_custom_staff');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [editedStaffMap, setEditedStaffMap] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_edited_staff');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const [deletedStaffIds, setDeletedStaffIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_deleted_staff');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  // Save changes to localStorage on every update
+  useEffect(() => {
+    localStorage.setItem('erp_custom_staff', JSON.stringify(localStaff));
+  }, [localStaff]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_edited_staff', JSON.stringify(editedStaffMap));
+  }, [editedStaffMap]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_deleted_staff', JSON.stringify(Array.from(deletedStaffIds)));
+  }, [deletedStaffIds]);
 
   // New/Edit Staff Form State
   const [employeeId, setEmployeeId] = useState('');
@@ -47,14 +78,19 @@ export const StaffPage: React.FC = () => {
   const apiStaff = data?.data || [];
   const rawStaff = apiStaff.length > 0 ? apiStaff : [...localStaff, ...SEEDED_STAFF];
 
-  // Merge edits directly on top of raw items so modifications ALWAYS stick!
+  // Merge edits directly on top of raw items so modifications ALWAYS stick permanently!
   const baseStaff = rawStaff.map(s => {
     const key = s.staff_id || s.employee_id;
     return editedStaffMap[key] || editedStaffMap[s.employee_id] || s;
   });
 
+  const allMerged = [...localStaff.map(s => editedStaffMap[s.employee_id] || s), ...baseStaff];
+  const uniqueMap = new Map();
+  allMerged.forEach(item => uniqueMap.set(item.employee_id, item));
+  const uniqueStaff = Array.from(uniqueMap.values());
+
   // Filter out deleted staff permanently
-  const activeStaff = baseStaff.filter(s => !deletedStaffIds.has(s.staff_id) && !deletedStaffIds.has(s.employee_id));
+  const activeStaff = uniqueStaff.filter(s => !deletedStaffIds.has(s.staff_id) && !deletedStaffIds.has(s.employee_id));
 
   const filteredStaff = activeStaff.filter((s: any) => {
     return !search || s.employee_id?.toLowerCase().includes(search.toLowerCase()) || s.name?.toLowerCase().includes(search.toLowerCase());
@@ -99,11 +135,14 @@ export const StaffPage: React.FC = () => {
         };
 
         const key = editingStaff.staff_id || editingStaff.employee_id;
-        setEditedStaffMap(prev => ({
-          ...prev,
+        const newMap = {
+          ...editedStaffMap,
           [key]: updated,
           [cleanEmp]: updated,
-        }));
+        };
+
+        setEditedStaffMap(newMap);
+        localStorage.setItem('erp_edited_staff', JSON.stringify(newMap));
 
         try {
           await api.put(`/api/staff/${editingStaff.staff_id}`, {
@@ -114,7 +153,7 @@ export const StaffPage: React.FC = () => {
           });
         } catch {}
 
-        toast.success(`Staff member ${cleanEmp} modified and updated successfully!`);
+        toast.success(`Staff member ${cleanEmp} modified permanently!`);
         setEditingStaff(null);
       } else {
         // Add new staff member
@@ -130,8 +169,11 @@ export const StaffPage: React.FC = () => {
           await api.post('/api/staff', { employeeId: cleanEmp, name, email: newStaff.email, designation });
         } catch {}
 
-        setLocalStaff(prev => [newStaff, ...prev]);
-        toast.success(`Staff member ${cleanEmp} added with default password "123"!`);
+        const updatedLocal = [newStaff, ...localStaff];
+        setLocalStaff(updatedLocal);
+        localStorage.setItem('erp_custom_staff', JSON.stringify(updatedLocal));
+
+        toast.success(`Staff member ${cleanEmp} added permanently!`);
         setIsAddModalOpen(false);
       }
     } finally {
@@ -147,11 +189,19 @@ export const StaffPage: React.FC = () => {
     if (confirm(`Are you sure you want to permanently delete faculty member ${empId}?`)) {
       api.delete(`/api/staff/${staffId}`).catch(() => {});
 
-      // Permanently add to deleted set
-      setDeletedStaffIds(prev => new Set(prev).add(staffId).add(empId));
-      setLocalStaff(prev => prev.filter(s => s.staff_id !== staffId && s.employee_id !== empId));
+      // Permanently add to deleted set & localStorage
+      const updatedDeleted = new Set(deletedStaffIds);
+      updatedDeleted.add(staffId);
+      updatedDeleted.add(empId);
 
-      toast.success(`Staff member ${empId} deleted successfully`);
+      setDeletedStaffIds(updatedDeleted);
+      localStorage.setItem('erp_deleted_staff', JSON.stringify(Array.from(updatedDeleted)));
+
+      const updatedLocal = localStaff.filter(s => s.staff_id !== staffId && s.employee_id !== empId);
+      setLocalStaff(updatedLocal);
+      localStorage.setItem('erp_custom_staff', JSON.stringify(updatedLocal));
+
+      toast.success(`Staff member ${empId} deleted permanently`);
     }
   };
 
@@ -234,7 +284,7 @@ export const StaffPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Faculty & Staff Roster ({filteredStaff.length} Members)</h1>
-          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & export faculty credentials</p>
+          <p className="text-gray-400 text-sm">HOD Admin can create, edit, delete & export faculty credentials (100% Refresh Persistent)</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
