@@ -96,11 +96,7 @@ export const WhatsAppParentsPage: React.FC = () => {
   const [deliveryLogs, setDeliveryLogs] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('erp_whatsapp_parent_logs');
-      return saved ? JSON.parse(saved) : [
-        { id: 'log_1', reg: 'CS2001', phone: '+91 9840011234', template: 'IAT-1 Mark Approval', status: 'DELIVERED', time: '2025-09-17 10:30 AM' },
-        { id: 'log_2', reg: 'CS2002', phone: '+91 9840021234', template: 'Low Attendance Alert', status: 'DELIVERED', time: '2025-09-17 11:15 AM' },
-        { id: 'log_3', reg: 'CS3001', phone: '+91 9884015678', template: 'Exam Circular', status: 'DELIVERED', time: '2025-09-16 04:20 PM' },
-      ];
+      return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
 

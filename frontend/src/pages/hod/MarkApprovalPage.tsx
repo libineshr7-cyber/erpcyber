@@ -4,47 +4,7 @@ import { FileCheck, CheckCircle2, XCircle, AlertCircle, Send, Smartphone, Shield
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const DEFAULT_PENDING_BATCHES = [
-  {
-    batch_id: 'b1',
-    course_code: 'CS201',
-    course_name: 'Network Security',
-    exam_name: 'IAT-1 Assessment',
-    year_sem: 'Year 2 (Sem 3)',
-    submitted_by: 'Dr. Priya Sharma (ST001)',
-    submitted_at: '2025-09-16 10:30 AM',
-    total_students: 49,
-    class_average: '82.4%',
-    pass_percentage: '95.9%',
-    status: 'SUBMITTED_FOR_APPROVAL',
-  },
-  {
-    batch_id: 'b2',
-    course_code: 'CS202',
-    course_name: 'Operating Systems & Defence',
-    exam_name: 'IAT-1 Assessment',
-    year_sem: 'Year 2 (Sem 4)',
-    submitted_by: 'Dr. Anand V (ST003)',
-    submitted_at: '2025-09-16 11:15 AM',
-    total_students: 49,
-    class_average: '78.1%',
-    pass_percentage: '91.8%',
-    status: 'SUBMITTED_FOR_APPROVAL',
-  },
-  {
-    batch_id: 'b3',
-    course_code: 'CS302',
-    course_name: 'Cryptography & Protocol Analysis',
-    exam_name: 'IAT-2 Assessment',
-    year_sem: 'Year 3 (Sem 6)',
-    submitted_by: 'Dr. Rajesh Kannan (ST005)',
-    submitted_at: '2025-09-17 09:45 AM',
-    total_students: 48,
-    class_average: '86.5%',
-    pass_percentage: '97.9%',
-    status: 'SUBMITTED_FOR_APPROVAL',
-  },
-];
+const DEFAULT_PENDING_BATCHES: any[] = [];
 
 export const MarkApprovalPage: React.FC = () => {
   const [rejectBatchId, setRejectBatchId] = useState<string | null>(null);

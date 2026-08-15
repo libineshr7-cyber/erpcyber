@@ -4,15 +4,7 @@ import { Shield, Search, Filter, Download, RefreshCw, CheckCircle2 } from 'lucid
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const SEEDED_AUDIT_LOGS = [
-  { log_id: 'l1', action: 'CREATE_STUDENT', details: 'Added new student CS2050 (John Doe) to 2nd Year Cybersecurity', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-17T10:12:00Z' },
-  { log_id: 'l2', action: 'MODIFY_STUDENT', details: 'Updated student details for CS2001 (Aakash Sharma)', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-17T09:45:00Z' },
-  { log_id: 'l3', action: 'CREATE_STAFF', details: 'Added faculty member ST008 (Dr. Jane Smith)', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-16T14:20:00Z' },
-  { log_id: 'l4', action: 'ASSIGN_SUBJECT', details: 'Assigned CS201 Network Security to Dr. Priya Sharma (ST001)', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-16T11:05:00Z' },
-  { log_id: 'l5', action: 'CREATE_EXAM', details: 'Scheduled IAT-1 Assessment (IAT1) for Sept 15, 2025', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-15T16:30:00Z' },
-  { log_id: 'l6', action: 'CREATE_EVENT', details: 'Published event: National Cyber CTF Hackathon 2025', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-14T08:00:00Z' },
-  { log_id: 'l7', action: 'CREATE_ANNOUNCEMENT', details: 'Published circular: Schedule for Internal Assessment-1', username: 'hod_test', role: 'HOD', result: 'SUCCESS', created_at: '2025-09-13T12:15:00Z' },
-];
+const SEEDED_AUDIT_LOGS: any[] = [];
 
 export const AuditLogsPage: React.FC = () => {
   const [search, setSearch] = useState('');

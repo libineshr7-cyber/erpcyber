@@ -4,11 +4,7 @@ import { Megaphone, Plus, Pin, Edit2, Trash2, Download, Users, UserCheck, Gradua
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const DEFAULT_ANNOUNCEMENTS = [
-  { announcement_id: 'ann_1', title: 'Schedule for Internal Assessment-1 (IAT-1)', content: 'IAT-1 exams for 2nd and 3rd year B.E. Cybersecurity students commence on Sept 15, 2025.', category: 'EXAM', target_audience: 'ALL_STUDENTS', pinned: true, created_at: '2025-09-01' },
-  { announcement_id: 'ann_2', title: 'Staff Circular: Submit Internal Marks by Friday', content: 'All teaching faculty members must complete mark entry and submit for HOD approval before Sept 20.', category: 'CIRCULAR', target_audience: 'ALL_STAFF', pinned: true, created_at: '2025-09-05' },
-  { announcement_id: 'ann_3', title: 'Registration Open for National Cyber CTF Hackathon', content: 'Register your teams of 3 for the upcoming 24-hour CTF. Open to all students & faculty.', category: 'EVENT', target_audience: 'EVERYONE', pinned: false, created_at: '2025-09-10' },
-];
+const DEFAULT_ANNOUNCEMENTS: any[] = [];
 
 export const AnnouncementsPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

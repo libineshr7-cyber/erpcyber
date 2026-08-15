@@ -4,11 +4,7 @@ import { ShieldAlert, CheckCircle2, AlertTriangle, ShieldCheck, RefreshCw, Smart
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const DEFAULT_SECURITY_EVENTS = [
-  { event_id: 'sec_1', event_type: 'FAILED_LOGIN_ATTEMPT', severity: 'WARNING', description: '3 failed login attempts from IP 192.168.1.104 for username st004', created_at: '2025-09-17T08:15:00Z', resolved: false },
-  { event_id: 'sec_2', event_type: 'MFA_DEVICE_ADDED', severity: 'INFO', description: 'New TOTP MFA device enrolled for HOD Admin account', created_at: '2025-09-16T14:10:00Z', resolved: true },
-  { event_id: 'sec_3', event_type: 'SESSION_IP_CHANGE', severity: 'WARNING', description: 'Active session IP shift detected for user st001', created_at: '2025-09-15T11:40:00Z', resolved: false },
-];
+const DEFAULT_SECURITY_EVENTS: any[] = [];
 
 export const SecurityCenterPage: React.FC = () => {
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(() => {

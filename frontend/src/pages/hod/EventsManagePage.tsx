@@ -4,11 +4,7 @@ import { Calendar, Plus, Trash2, Edit2, Download, CheckCircle2 } from 'lucide-re
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const DEFAULT_EVENTS = [
-  { event_id: 'ev_1', title: 'National Cyber CTF Hackathon 2025', description: '24-hour inter-college cybersecurity capture-the-flag hackathon.', event_type: 'HACKATHON', event_date: '2025-09-25', venue: 'Cyber Lab 1 & 2' },
-  { event_id: 'ev_2', title: 'Workshop on Cloud Security Auditing', description: 'Hands-on AWS and Azure IAM security architecture workshop.', event_type: 'WORKSHOP', event_date: '2025-10-10', venue: 'Main Auditorium' },
-  { event_id: 'ev_3', title: 'Guest Lecture: AI in Ethical Hacking', description: 'Keynote speech by Lead Security Architect from Microsoft.', event_type: 'SEMINAR', event_date: '2025-11-05', venue: 'Seminar Hall A' },
-];
+const DEFAULT_EVENTS: any[] = [];
 
 export const EventsManagePage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
