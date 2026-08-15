@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { UserPlus, UserCheck, BookOpen, ShieldAlert, Award, FileCheck, Calendar, Megaphone, CheckCircle2 } from 'lucide-react';
+import { UserPlus, UserCheck, BookOpen, ShieldAlert, Award, FileCheck, Calendar, Megaphone, Trash2 } from 'lucide-react';
 import api from '../../api/client';
+import toast from 'react-hot-toast';
 
 // Seeded Base Constants matching module pages
 const SEEDED_STUDENT_COUNT = 97;
@@ -112,17 +113,39 @@ export const HODDashboard: React.FC = () => {
     queryFn: () => api.get('/api/marks/pending-approval?limit=1').then(r => r.data).catch(() => null),
   });
 
+  const clearAllTestingDummyData = () => {
+    if (confirm('Are you sure you want to permanently delete all custom testing dummy details (events, announcements, audit logs, custom staff/students/subjects, mark approvals, and WhatsApp logs)?')) {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('erp_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      toast.success('All custom testing dummy details cleared permanently! System reset to pristine state.');
+      setTimeout(() => { window.location.reload(); }, 600);
+    }
+  };
+
   return (
     <div className="space-y-8">
-      {/* Top Banner with Header + 3 Quick Action Buttons */}
+      {/* Top Banner with Header + Quick Action Buttons */}
       <div className="glass-card p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-purple-950/40 via-cyan-950/30 to-surface-900 border border-purple-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">HOD Administrative Center</h1>
           <p className="text-gray-400 text-sm">Department of Computer Science & Cybersecurity (Real-time Live Sync)</p>
         </div>
 
-        {/* Top 3 Quick Action Buttons */}
+        {/* Quick Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={clearAllTestingDummyData}
+            className="btn-secondary flex items-center justify-center gap-2 text-xs py-2.5 px-3 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40 text-red-300 border-red-500/30 font-semibold cursor-pointer"
+            title="Permanently clear all testing dummy data & reset to clean state"
+          >
+            <Trash2 className="w-4 h-4 text-red-400" />
+            Delete All Dummy Testing Data
+          </button>
+
           <Link
             to="/hod/students"
             className="btn-primary flex items-center justify-center gap-2 text-xs py-2.5 px-4 shadow-lg shadow-cyan-500/20"
