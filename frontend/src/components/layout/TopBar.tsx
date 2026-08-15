@@ -74,43 +74,43 @@ export const TopBar: React.FC = () => {
         <div ref={notifRef} className="relative z-50">
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="p-2 hover:bg-white/10 text-cyan-400 rounded-xl transition-colors relative cursor-pointer"
+            className="p-2 hover:bg-rose-50 text-rose-900 rounded-xl transition-colors relative cursor-pointer"
             title="View HOD Announcements & Notifications"
           >
             <Bell className="w-5 h-5" />
             {relevantNotifs.length > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full animate-ping" />
             )}
             {relevantNotifs.length > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full" />
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full" />
             )}
           </button>
 
-          {/* Notifications Dropdown Popover — High z-index z-[9999] so it stays foreground on top of main content */}
+          {/* Notifications Dropdown Popover */}
           {isNotifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 glass-card p-4 rounded-2xl border border-cyan-500/50 shadow-2xl z-[9999] bg-surface-900/95 backdrop-blur-2xl animate-slide-up space-y-3">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <span className="font-bold text-white text-sm flex items-center gap-2">
-                  <Megaphone className="w-4 h-4 text-cyan-400" />
+            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white p-4 rounded-2xl border border-rose-900/20 shadow-2xl z-[9999] animate-slide-up space-y-3">
+              <div className="flex items-center justify-between border-b border-rose-900/10 pb-2">
+                <span className="font-bold text-rose-900 text-sm flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-rose-800" />
                   HOD Notifications ({relevantNotifs.length})
                 </span>
-                <button onClick={() => setIsNotifOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <button onClick={() => setIsNotifOpen(false)} className="text-gray-400 hover:text-slate-700 cursor-pointer">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-white/5 pr-1">
+              <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-slate-100 pr-1">
                 {!relevantNotifs.length ? (
-                  <div className="text-center py-6 text-xs text-gray-500">No new notifications.</div>
+                  <div className="text-center py-6 text-xs text-slate-500">No new notifications.</div>
                 ) : (
                   relevantNotifs.map((n: any, idx) => (
                     <div key={idx} className="pt-2 text-xs space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-cyan-300">{n.title}</span>
-                        <span className="text-[10px] text-gray-500">{new Date(n.created_at || Date.now()).toLocaleDateString()}</span>
+                        <span className="font-bold text-rose-900">{n.title}</span>
+                        <span className="text-[10px] text-slate-500">{new Date(n.created_at || Date.now()).toLocaleDateString()}</span>
                       </div>
-                      <p className="text-gray-300 text-[11px] leading-relaxed line-clamp-2">{n.content}</p>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 inline-block border border-cyan-500/20">
+                      <p className="text-slate-600 text-[11px] leading-relaxed line-clamp-2">{n.content}</p>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-800 inline-block border border-rose-900/20">
                         Target: {n.target_audience === 'ALL_STAFF' ? 'Staff Only' : n.target_audience === 'ALL_STUDENTS' ? 'Students Only' : 'Everyone'}
                       </span>
                     </div>
@@ -122,11 +122,14 @@ export const TopBar: React.FC = () => {
         </div>
       )}
 
-      <span className="text-sm font-medium text-slate-300">
-        @{user?.username || 'User'} <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full font-bold">{user?.role}</span>
+      <span className="text-sm font-medium text-slate-700">
+        @{user?.username || 'User'}{' '}
+        <span className="text-xs bg-rose-900/10 text-rose-900 px-2.5 py-0.5 rounded-full font-bold border border-rose-900/20">
+          {user?.role}
+        </span>
       </span>
       
-      <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300 font-semibold transition-colors cursor-pointer">
+      <button onClick={handleLogout} className="text-sm text-red-600 hover:text-red-700 font-bold transition-colors cursor-pointer">
         Logout
       </button>
     </div>

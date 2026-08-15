@@ -64,9 +64,9 @@ export const Sidebar: React.FC = () => {
     : studentLinks;
 
   return (
-    <div className="flex flex-col gap-1 mt-4 px-2">
-      <div className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase px-3 mb-2">
-        {user?.role || 'Portal'} Navigation
+    <div className="flex flex-col gap-1 mt-2 px-3">
+      <div className="text-[11px] font-bold tracking-wider text-rose-900 uppercase px-3 mb-2 font-mono">
+        {user?.role || 'Portal'} NAVIGATION
       </div>
       {links.map(link => {
         const Icon = link.icon;
@@ -76,10 +76,10 @@ export const Sidebar: React.FC = () => {
             to={link.to}
             end={link.to === '/hod' || link.to === '/staff' || link.to === '/student'}
             className={({ isActive }) => clsx(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+              'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200',
               isActive
-                ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 shadow-sm'
-                : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
+                ? 'bg-gradient-to-r from-rose-900 to-rose-950 text-white shadow-md shadow-rose-900/20'
+                : 'text-slate-700 hover:bg-rose-50 hover:text-rose-900'
             )}
           >
             <Icon className="w-4 h-4" />
