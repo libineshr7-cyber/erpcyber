@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Award, Plus, Calendar } from 'lucide-react';
+import { Award, Plus, Calendar, Edit2, Trash2, Download, CheckCircle2 } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -13,12 +13,51 @@ const DEFAULT_EXAMS = [
 
 export const ExamsPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [localExams, setLocalExams] = useState<any[]>([]);
+  const [editingExam, setEditingExam] = useState<any | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Persistent localStorage initialization so edits/deletes NEVER disappear on refresh (F5)
+  const [localExams, setLocalExams] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('erp_custom_exams');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const [editedExamsMap, setEditedExamsMap] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_edited_exams');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const [deletedExamIds, setDeletedExamIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('erp_deleted_exams');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  // Save changes to localStorage on every update
+  useEffect(() => {
+    localStorage.setItem('erp_custom_exams', JSON.stringify(localExams));
+  }, [localExams]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_edited_exams', JSON.stringify(editedExamsMap));
+  }, [editedExamsMap]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_deleted_exams', JSON.stringify(Array.from(deletedExamIds)));
+  }, [deletedExamIds]);
+
+  // Form State for Exam
   const [examName, setExamName] = useState('');
   const [examCode, setExamCode] = useState('');
   const [examDate, setExamDate] = useState('');
   const [maximumMarks, setMaximumMarks] = useState('50');
   const [passingMarks, setPassingMarks] = useState('25');
+  const [status, setStatus] = useState('SCHEDULED');
 
   const qc = useQueryClient();
 
@@ -34,91 +73,285 @@ export const ExamsPage: React.FC = () => {
     },
   });
 
-  const apiExams = exams || [];
-  const combinedExams = apiExams.length > 0 ? apiExams : [...localExams, ...DEFAULT_EXAMS];
+  const rawExams = exams?.length ? exams : [...localExams, ...DEFAULT_EXAMS];
 
-  const addExamMutation = useMutation({
-    mutationFn: async () => {
-      const code = examCode.toUpperCase();
-      const newExam = {
-        exam_id: `ex_${Date.now()}`,
-        exam_name: examName,
-        exam_code: code,
-        exam_date: examDate || new Date().toISOString(),
-        maximum_marks: Number(maximumMarks),
-        passing_marks: Number(passingMarks),
-        status: 'SCHEDULED',
-      };
+  // Merge edits directly on top of raw items so modifications ALWAYS stick permanently!
+  const baseExams = rawExams.map((e: any) => {
+    const key = e.exam_id || e.exam_code;
+    return editedExamsMap[key] || editedExamsMap[e.exam_code] || e;
+  });
 
-      try {
-        await api.post('/api/exams', {
-          examName,
-          examCode: code,
-          examDate: examDate || undefined,
-          maximumMarks: Number(maximumMarks),
-          passingMarks: Number(passingMarks),
-        });
-      } catch {}
+  const allMerged = [...localExams.map(e => editedExamsMap[e.exam_code] || e), ...baseExams];
+  const uniqueMap = new Map();
+  allMerged.forEach(item => uniqueMap.set(item.exam_code || item.exam_id, item));
+  const uniqueExams = Array.from(uniqueMap.values());
 
-      setLocalExams(prev => [newExam, ...prev]);
-      return newExam;
-    },
-    onSuccess: () => {
-      toast.success(`Exam ${examName} created!`);
-      setIsAddModalOpen(false);
+  // Filter out deleted exams permanently
+  const activeExams = uniqueExams.filter(e => !deletedExamIds.has(e.exam_id) && !deletedExamIds.has(e.exam_code));
+
+  const openEditModal = (exam: any) => {
+    setEditingExam(exam);
+    setExamName(exam.exam_name);
+    setExamCode(exam.exam_code || '');
+    setExamDate(exam.exam_date ? exam.exam_date.split('T')[0] : '');
+    setMaximumMarks(String(exam.maximum_marks || 50));
+    setPassingMarks(String(exam.passing_marks || 25));
+    setStatus(exam.status || 'SCHEDULED');
+  };
+
+  const handleSaveExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving) return;
+
+    const cleanCode = examCode.trim().toUpperCase();
+
+    if (!editingExam) {
+      // DUPLICATE CHECK: Disallow adding duplicate exam codes!
+      const isDuplicate = activeExams.some(
+        ex => ex.exam_code?.toUpperCase() === cleanCode
+      );
+      if (isDuplicate) {
+        toast.error(`Duplicate Error: Exam code "${cleanCode}" already exists!`);
+        return;
+      }
+    }
+
+    setIsSaving(true);
+
+    try {
+      if (editingExam) {
+        // Edit existing exam
+        const updated = {
+          ...editingExam,
+          exam_name: examName,
+          exam_code: cleanCode,
+          exam_date: examDate || new Date().toISOString(),
+          maximum_marks: Number(maximumMarks),
+          passing_marks: Number(passingMarks),
+          status,
+        };
+
+        const key = editingExam.exam_id || editingExam.exam_code;
+        const newMap = {
+          ...editedExamsMap,
+          [key]: updated,
+          [cleanCode]: updated,
+        };
+
+        setEditedExamsMap(newMap);
+        localStorage.setItem('erp_edited_exams', JSON.stringify(newMap));
+
+        toast.success(`Exam "${examName}" modified permanently!`);
+        setEditingExam(null);
+      } else {
+        // Add new exam
+        const newExam = {
+          exam_id: `ex_${Date.now()}`,
+          exam_name: examName,
+          exam_code: cleanCode,
+          exam_date: examDate || new Date().toISOString(),
+          maximum_marks: Number(maximumMarks),
+          passing_marks: Number(passingMarks),
+          status: 'SCHEDULED',
+        };
+
+        try {
+          await api.post('/api/exams', {
+            examName,
+            examCode: cleanCode,
+            examDate: examDate || undefined,
+            maximumMarks: Number(maximumMarks),
+            passingMarks: Number(passingMarks),
+          });
+        } catch {}
+
+        const updatedLocal = [newExam, ...localExams];
+        setLocalExams(updatedLocal);
+        localStorage.setItem('erp_custom_exams', JSON.stringify(updatedLocal));
+
+        toast.success(`Exam "${examName}" scheduled permanently!`);
+        setIsAddModalOpen(false);
+      }
+    } finally {
+      setIsSaving(false);
       setExamName('');
       setExamCode('');
       qc.invalidateQueries({ queryKey: ['exams-list'] });
       qc.invalidateQueries({ queryKey: ['exams'] });
-    },
-  });
+    }
+  };
+
+  const deleteExam = (examId: string, code: string, name: string) => {
+    if (confirm(`Are you sure you want to permanently delete exam "${name}"?`)) {
+      // Permanently add to deleted set & localStorage
+      const updatedDeleted = new Set(deletedExamIds);
+      updatedDeleted.add(examId);
+      updatedDeleted.add(code);
+
+      setDeletedExamIds(updatedDeleted);
+      localStorage.setItem('erp_deleted_exams', JSON.stringify(Array.from(updatedDeleted)));
+
+      const updatedLocal = localExams.filter(e => e.exam_id !== examId && e.exam_code !== code);
+      setLocalExams(updatedLocal);
+      localStorage.setItem('erp_custom_exams', JSON.stringify(updatedLocal));
+
+      toast.success(`Exam "${name}" deleted permanently`);
+    }
+  };
+
+  const downloadExamsPdf = () => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      toast.error('Please allow popups to download PDF');
+      return;
+    }
+
+    const rowsHtml = activeExams.map((e, idx) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${e.exam_name}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-family: monospace; color: #0284c7;">${e.exam_code || '—'}</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${e.exam_date ? new Date(e.exam_date).toLocaleDateString() : 'TBA'}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${e.maximum_marks}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${e.passing_marks}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #0284c7;">${e.status || 'SCHEDULED'}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Examinations Schedule Report - Prathyusha Engineering College</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
+            .header { text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; }
+            .header h1 { margin: 0; color: #0369a1; font-size: 22px; }
+            .header h3 { margin: 5px 0 0 0; color: #475569; font-size: 14px; font-weight: normal; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+            th { background-color: #0284c7; color: white; padding: 10px; border: 1px solid #0284c7; text-align: left; }
+            .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>PRATHYUSHA ENGINEERING COLLEGE</h1>
+            <h3>DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING</h3>
+            <p style="margin: 5px 0 0 0; font-size: 13px; font-weight: bold; color: #0369a1;">OFFICIAL EXAMINATIONS SCHEDULE REPORT (${activeExams.length} ASSESSMENTS)</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">S.No</th>
+                <th>Exam Name / Assessment Title</th>
+                <th>Exam Code</th>
+                <th>Scheduled Exam Date</th>
+                <th style="text-align: center;">Max Marks</th>
+                <th style="text-align: center;">Passing Marks</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <div>Generated Date: ${new Date().toLocaleDateString()}</div>
+            <div>Head of Department Signature: _______________________</div>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
 
   return (
     <div className="space-y-6">
+      {/* Top Header with + Add Exam & Download PDF Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white heading-gradient">Examinations Management ({combinedExams.length})</h1>
-          <p className="text-gray-400 text-sm">Synchronized across HOD and Staff portals</p>
+          <h1 className="text-3xl font-bold text-white heading-gradient">Examinations Management ({activeExams.length})</h1>
+          <p className="text-gray-400 text-sm">HOD Admin can schedule, edit, delete & export exam schedules (100% Refresh Persistent)</p>
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
-        >
-          <Award className="w-4 h-4" />
-          + Add Exam
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={downloadExamsPdf}
+            className="btn-secondary flex items-center justify-center gap-2 text-xs py-2.5 px-4"
+          >
+            <Download className="w-4 h-4 text-cyan-400" />
+            Export Exams PDF
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingExam(null);
+              setExamName('');
+              setExamCode('');
+              setIsAddModalOpen(true);
+            }}
+            className="btn-primary flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
+          >
+            <Award className="w-4 h-4" />
+            + Add Exam
+          </button>
+        </div>
       </div>
 
+      {/* Examinations List Table */}
       <div className="glass-card rounded-2xl overflow-hidden">
-        {isLoading && !combinedExams.length ? (
+        {isLoading && !activeExams.length ? (
           <div className="p-12 text-center flex justify-center"><div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>
-        ) : !combinedExams.length ? (
+        ) : !activeExams.length ? (
           <div className="p-12 text-center text-gray-500">No exams created yet. Click "+ Add Exam" to schedule an assessment.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/10 text-xs font-medium text-gray-400 uppercase">
+                <tr className="border-b border-white/10 text-xs font-medium text-gray-400 uppercase bg-surface-900">
                   <th className="p-4">Exam Name</th>
                   <th className="p-4">Code</th>
                   <th className="p-4">Exam Date</th>
                   <th className="p-4">Max Marks</th>
                   <th className="p-4">Passing Marks</th>
                   <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-sm">
-                {combinedExams.map((e: any) => (
-                  <tr key={e.exam_id || e.exam_code} className="hover:bg-white/5">
+                {activeExams.map((e: any) => (
+                  <tr key={e.exam_id || e.exam_code} className="hover:bg-white/5 transition-colors">
                     <td className="p-4 font-bold text-white">{e.exam_name}</td>
                     <td className="p-4 font-mono text-cyan-400 text-xs">{e.exam_code || '—'}</td>
                     <td className="p-4 text-gray-300 text-xs">{e.exam_date ? new Date(e.exam_date).toLocaleDateString() : 'TBA'}</td>
                     <td className="p-4 font-mono text-white text-xs">{e.maximum_marks}</td>
                     <td className="p-4 font-mono text-gray-300 text-xs">{e.passing_marks}</td>
                     <td className="p-4">
-                      <span className="px-2.5 py-1 text-xs rounded-full bg-cyan-500/10 text-cyan-400 font-semibold">
+                      <span className="px-2.5 py-1 text-xs rounded-full bg-cyan-500/10 text-cyan-400 font-semibold border border-cyan-500/20">
                         {e.status || 'SCHEDULED'}
                       </span>
+                    </td>
+                    <td className="p-4 text-right space-x-2">
+                      <button
+                        onClick={() => openEditModal(e)}
+                        className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Exam Schedule"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteExam(e.exam_id, e.exam_code, e.exam_name)}
+                        className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Exam"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -128,15 +361,19 @@ export const ExamsPage: React.FC = () => {
         )}
       </div>
 
-      {isAddModalOpen && (
+      {/* Add / Edit Exam Modal */}
+      {(isAddModalOpen || editingExam) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="glass-card max-w-md w-full p-6 rounded-2xl space-y-4 border border-cyan-500/30 animate-slide-up">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Award className="w-5 h-5 text-cyan-400" />
-              Schedule New Examination
+              {editingExam ? <Edit2 className="w-5 h-5 text-cyan-400" /> : <Award className="w-5 h-5 text-cyan-400" />}
+              {editingExam ? `Edit Exam: ${editingExam.exam_name}` : 'Schedule New Examination'}
             </h2>
+            <p className="text-xs text-gray-400">
+              {editingExam ? 'Update assessment title, exam code, scheduled date, marks, and status.' : 'Duplicates are blocked. Exam code must be unique.'}
+            </p>
 
-            <form onSubmit={ev => { ev.preventDefault(); addExamMutation.mutate(); }} className="space-y-3 text-sm">
+            <form onSubmit={handleSaveExam} className="space-y-3 text-sm">
               <div>
                 <label className="block text-xs text-gray-300 mb-1">Exam Title (e.g. IAT-1 / Semester Exam)</label>
                 <input
@@ -154,10 +391,11 @@ export const ExamsPage: React.FC = () => {
                   <label className="block text-xs text-gray-300 mb-1">Exam Code</label>
                   <input
                     type="text"
+                    required
                     value={examCode}
                     onChange={ev => setExamCode(ev.target.value.toUpperCase())}
                     placeholder="IAT1"
-                    className="input-field"
+                    className="input-field font-mono font-bold text-cyan-400"
                   />
                 </div>
                 <div>
@@ -176,6 +414,7 @@ export const ExamsPage: React.FC = () => {
                   <label className="block text-xs text-gray-300 mb-1">Maximum Marks</label>
                   <input
                     type="number"
+                    required
                     value={maximumMarks}
                     onChange={ev => setMaximumMarks(ev.target.value)}
                     className="input-field"
@@ -185,6 +424,7 @@ export const ExamsPage: React.FC = () => {
                   <label className="block text-xs text-gray-300 mb-1">Passing Marks</label>
                   <input
                     type="number"
+                    required
                     value={passingMarks}
                     onChange={ev => setPassingMarks(ev.target.value)}
                     className="input-field"
@@ -192,9 +432,32 @@ export const ExamsPage: React.FC = () => {
                 </div>
               </div>
 
+              {editingExam && (
+                <div>
+                  <label className="block text-xs text-gray-300 mb-1">Exam Status</label>
+                  <select value={status} onChange={e => setStatus(e.target.value)} className="input-field">
+                    <option value="SCHEDULED">Scheduled</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4 justify-end">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn-secondary text-xs">Cancel</button>
-                <button type="submit" disabled={addExamMutation.isPending} className="btn-primary text-xs">Create Exam</button>
+                <button
+                  type="button"
+                  onClick={() => { setIsAddModalOpen(false); setEditingExam(null); }}
+                  className="btn-secondary text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="btn-primary text-xs disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : editingExam ? 'Save Changes' : 'Create Exam'}
+                </button>
               </div>
             </form>
           </div>
