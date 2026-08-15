@@ -1,36 +1,110 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Download, Send, CheckCircle, RefreshCw, X } from 'lucide-react';
+import { FileText, Download, Send, CheckCircle, RefreshCw, X, User, Layers, Calendar } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const SEEDED_REPORTS = [
-  { report_id: 'rep_1', register_number: 'CS2001', student_name: 'Student CS2001', exam_name: 'IAT-1 Assessment', generated_at: '2025-09-17T10:30:00Z' },
-  { report_id: 'rep_2', register_number: 'CS2002', student_name: 'Student CS2002', exam_name: 'IAT-1 Assessment', generated_at: '2025-09-17T11:00:00Z' },
-  { report_id: 'rep_3', register_number: 'CS3001', student_name: 'Student CS3001', exam_name: 'IAT-1 Assessment', generated_at: '2025-09-16T15:45:00Z' },
+interface StudentRosterItem {
+  student_id: string;
+  register_number: string;
+  name: string;
+  year: string;
+  section: string;
+  attendance: number;
+}
+
+// Generate roster for 97 Students with unique attendance %
+const generateRosterWithAttendance = (): StudentRosterItem[] => {
+  const list: StudentRosterItem[] = [];
+  for (let i = 1; i <= 49; i++) {
+    const num = i < 10 ? `0${i}` : `${i}`;
+    const reg = `CS20${num}`;
+    const attendance = Number((72 + ((i * 7) % 26) + 0.5).toFixed(1));
+    list.push({
+      student_id: `s2_${i}`,
+      register_number: reg,
+      name: `Student ${reg}`,
+      year: '2nd Year (Sem 3)',
+      section: 'A',
+      attendance,
+    });
+  }
+  for (let i = 1; i <= 48; i++) {
+    const num = i < 10 ? `0${i}` : `${i}`;
+    const reg = `CS30${num}`;
+    const attendance = Number((74 + ((i * 5) % 24) + 0.2).toFixed(1));
+    list.push({
+      student_id: `s3_${i}`,
+      register_number: reg,
+      name: `Student ${reg}`,
+      year: '3rd Year (Sem 5)',
+      section: 'B',
+      attendance,
+    });
+  }
+  return list;
+};
+
+const ALL_ROSTER = generateRosterWithAttendance();
+
+const FIVE_SUBJECTS = [
+  { subject_code: 'CS201', subject_name: 'Network Security' },
+  { subject_code: 'CS102', subject_name: 'Programming in C' },
+  { subject_code: 'CS301', subject_name: 'Web Application Security' },
+  { subject_code: 'CS202', subject_name: 'Database Management Systems' },
+  { subject_code: 'CS302', subject_name: 'Cloud Infrastructure Security' },
+];
+
+const SIX_SUBJECTS = [
+  ...FIVE_SUBJECTS,
+  { subject_code: 'CS203', subject_name: 'Operating Systems & System Audit' },
 ];
 
 export const ReportsPage: React.FC = () => {
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const [selectedExam, setSelectedExam] = useState('');
+  // Target Selection Mode: 'YEAR' or 'PARTICULAR'
+  const [targetMode, setTargetMode] = useState<'YEAR' | 'PARTICULAR'>('YEAR');
+  const [selectedYearBatch, setSelectedYearBatch] = useState<string>('2nd Year');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('CS2001');
 
-  // PROS Modal Prompt State
-  const [isProsModalOpen, setIsProsModalOpen] = useState(false);
+  // Enrolled Subjects Count Selector: 5 or 6 Subjects
+  const [subjectCountScale, setSubjectCountScale] = useState<5 | 6>(5);
+
+  // Metadata Prompts
   const [reportMonth, setReportMonth] = useState('September 2025');
   const [reportAcademicYear, setReportAcademicYear] = useState('2025 - 2026');
   const [reportAttendanceDate, setReportAttendanceDate] = useState('15-09-2025');
-  const [reportAttendancePct, setReportAttendancePct] = useState('88.5%');
-  const [reportAttendanceRemarks, setReportAttendanceRemarks] = useState('Satisfactory attendance record. Eligible for End Semester examinations.');
 
-  const { data: students } = useQuery({
-    queryKey: ['students-list'],
-    queryFn: () => api.get('/api/students?limit=100').then(r => r.data.data || []),
-  });
+  // Custom Attendance Map (Student ID -> Attendance %)
+  const [customAttendanceMap, setCustomAttendanceMap] = useState<Record<string, string>>({});
+  const [customRemarksMap, setCustomRemarksMap] = useState<Record<string, string>>({});
 
-  const { data: exams } = useQuery({
-    queryKey: ['exams-list'],
-    queryFn: () => api.get('/api/exams').then(r => r.data.data || []),
-  });
+  const getStudentAttendance = (student: StudentRosterItem) => {
+    return customAttendanceMap[student.register_number] || `${student.attendance}%`;
+  };
+
+  const getStudentRemarks = (attendancePct: number) => {
+    if (attendancePct >= 75) {
+      return 'Satisfactory attendance record. Eligible to appear for End Semester examinations.';
+    }
+    return 'CRITICAL ATTENDANCE WARNING: Attendance is below 75%. Ward is at risk of detention.';
+  };
+
+  const activeSubjects = subjectCountScale === 5 ? FIVE_SUBJECTS : SIX_SUBJECTS;
+
+  const getTargetStudents = (): StudentRosterItem[] => {
+    if (targetMode === 'PARTICULAR') {
+      const match = ALL_ROSTER.find(s => s.register_number === selectedStudentId || s.student_id === selectedStudentId);
+      return match ? [match] : [ALL_ROSTER[0]];
+    }
+
+    if (selectedYearBatch === '2nd Year') {
+      return ALL_ROSTER.filter(s => s.year.includes('2nd Year'));
+    }
+    if (selectedYearBatch === '3rd Year') {
+      return ALL_ROSTER.filter(s => s.year.includes('3rd Year'));
+    }
+    return ALL_ROSTER;
+  };
 
   const generateProsPdfReport = () => {
     const printWin = window.open('', '_blank');
@@ -39,20 +113,34 @@ export const ReportsPage: React.FC = () => {
       return;
     }
 
-    const reg = selectedStudent ? `CS20${selectedStudent.slice(-2)}` : 'CS2001';
-    const studentName = selectedStudent ? `Student ${reg}` : 'Student CS2001';
+    const targetStudents = getTargetStudents();
 
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>PROS Academic Performance Review Report - Prathyusha Engineering College</title>
-          <style>
-            @page { size: A4 portrait; margin: 15mm; }
-            body { margin: 0; padding: 20px 30px; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; }
-          </style>
-        </head>
-        <body>
+    const pagesHtml = targetStudents.map(student => {
+      const branch = 'B.E. Computer Science & Engineering';
+      const attendanceStr = getStudentAttendance(student);
+      const attendanceNum = parseFloat(attendanceStr.replace('%', '')) || student.attendance;
+      const remarks = customRemarksMap[student.register_number] || getStudentRemarks(attendanceNum);
+
+      // Render 5 or 6 Subject Rows dynamically as chosen by teacher
+      const rows = activeSubjects.map((sub, idx) => {
+        const mark = 65 + ((idx * 7 + student.register_number.charCodeAt(4)) % 32);
+        const grade = mark >= 90 ? 'O' : mark >= 80 ? 'A+' : mark >= 70 ? 'A' : mark >= 60 ? 'B+' : 'B';
+        const result = mark >= 50 ? 'P' : 'F';
+
+        return `
+          <tr>
+            <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">${idx + 1}</td>
+            <td style="font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">${sub.subject_code}</td>
+            <td style="padding: 6px; border: 1px solid #000; font-weight: 500;">${sub.subject_name}</td>
+            <td style="text-align: center; font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">${mark}</td>
+            <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">${grade}</td>
+            <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">${result}</td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div style="page-break-after: always; padding: 20px 30px; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff;">
           <!-- Header Emblem & Institution Title -->
           <div style="text-align: center; margin-bottom: 15px;">
             <div style="display: inline-block; width: 60px; height: 60px; border-radius: 50%; border: 2px solid #b91c1c; background: #fff; line-height: 60px; font-weight: bold; color: #b91c1c; font-size: 11px; margin-bottom: 5px;">
@@ -70,19 +158,19 @@ export const ReportsPage: React.FC = () => {
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px;">
             <tr>
               <td style="padding: 8px; border: 1px solid #000; width: 15%; font-weight: bold; background: #fafafa;">Student Name</td>
-              <td style="padding: 8px; border: 1px solid #000; width: 35%; font-weight: bold;">[ ${studentName} ]</td>
+              <td style="padding: 8px; border: 1px solid #000; width: 35%; font-weight: bold;">[ ${student.name} ]</td>
               <td style="padding: 8px; border: 1px solid #000; width: 15%; font-weight: bold; background: #fafafa;">Section</td>
-              <td style="padding: 8px; border: 1px solid #000; width: 35%; font-weight: bold;">[ A ]</td>
+              <td style="padding: 8px; border: 1px solid #000; width: 35%; font-weight: bold;">[ ${student.section} ]</td>
             </tr>
             <tr>
-              <td style="padding: 8px; border: 1px solid #000; font-weight: bold; background: #fafafa;">Reg. No.</td>
-              <td style="padding: 8px; border: 1px solid #000; font-family: monospace; font-weight: bold; font-size: 14px;">[ ${reg} ]</td>
+              <td style="padding: 8px; border: 1px solid #000; font-weight: bold; background: #fafafa;">Reg. No. / Section</td>
+              <td style="padding: 8px; border: 1px solid #000; font-family: monospace; font-weight: bold; font-size: 14px;">[ ${student.register_number} ]</td>
               <td style="padding: 8px; border: 1px solid #000; font-weight: bold; background: #fafafa;">Branch</td>
-              <td style="padding: 8px; border: 1px solid #000; font-weight: bold;">[ B.E. Computer Science & Engineering ]</td>
+              <td style="padding: 8px; border: 1px solid #000; font-weight: bold;">[ ${branch} ]</td>
             </tr>
           </table>
 
-          <!-- Academic Performance Table -->
+          <!-- Academic Performance Table (${subjectCountScale} Subjects) -->
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px;">
             <thead>
               <tr style="background-color: #fafafa;">
@@ -100,34 +188,11 @@ export const ReportsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">1</td>
-                <td style="font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">CS201</td>
-                <td style="padding: 6px; border: 1px solid #000; font-weight: 500;">Network Security</td>
-                <td style="text-align: center; font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">90</td>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">O</td>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">P</td>
-              </tr>
-              <tr>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">2</td>
-                <td style="font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">CS102</td>
-                <td style="padding: 6px; border: 1px solid #000; font-weight: 500;">Programming in C</td>
-                <td style="text-align: center; font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">84</td>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">A+</td>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">P</td>
-              </tr>
-              <tr>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">3</td>
-                <td style="font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">CS301</td>
-                <td style="padding: 6px; border: 1px solid #000; font-weight: 500;">Web Application Security</td>
-                <td style="text-align: center; font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">96</td>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">O</td>
-                <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">P</td>
-              </tr>
+              ${rows}
               <tr>
                 <td colSpan="6" style="padding: 8px; border: 1px solid #000;">
                   <strong>Attendance % As on [ <span style="font-weight: normal;">${reportAttendanceDate}</span> ]:</strong>
-                  <span style="margin-left: 20px; font-family: monospace; font-size: 14px; font-weight: bold; color: #15803d;">[ ${reportAttendancePct} ]</span>
+                  <span style="margin-left: 20px; font-family: monospace; font-size: 14px; font-weight: bold; color: ${attendanceNum >= 75 ? '#15803d' : '#b91c1c'};">[ ${attendanceStr} ]</span>
                 </td>
               </tr>
               <tr>
@@ -135,7 +200,7 @@ export const ReportsPage: React.FC = () => {
                   Remarks on Attendance
                 </td>
                 <td colSpan="4" style="padding: 10px; border: 1px solid #000; font-size: 12px; line-height: 1.5; vertical-align: top;">
-                  [ ${reportAttendanceRemarks} ]
+                  [ ${remarks} ]
                 </td>
               </tr>
             </tbody>
@@ -150,7 +215,22 @@ export const ReportsPage: React.FC = () => {
               <strong>Note:</strong> No digital note is circulated to the students for exam preparation. Kindly advice your ward to keep mobile phones away while studying and preparing for exams.
             </p>
           </div>
+        </div>
+      `;
+    }).join('');
 
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>PROS Academic Performance Review Report - Prathyusha Engineering College</title>
+          <style>
+            @page { size: A4 portrait; margin: 15mm; }
+            body { margin: 0; padding: 0; background: #fff; }
+          </style>
+        </head>
+        <body>
+          ${pagesHtml}
           <script>
             window.onload = function() { window.print(); }
           </script>
@@ -158,218 +238,216 @@ export const ReportsPage: React.FC = () => {
       </html>
     `);
     printWin.document.close();
-    setIsProsModalOpen(false);
-    toast.success('PROS PDF Academic Report generated successfully!');
+    toast.success(`PROS Report generated successfully for ${targetStudents.length} student(s) (${subjectCountScale} Subjects)!`);
   };
+
+  const targetStudents = getTargetStudents();
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white heading-gradient mb-2">PDF Academic Reports</h1>
-        <p className="text-gray-400">Generate, view, and distribute official student PROS performance reports</p>
+        <h1 className="text-3xl font-bold text-white heading-gradient mb-1 flex items-center gap-2">
+          <FileText className="w-7 h-7 text-cyan-400" />
+          Official PROS Academic Performance Reports
+        </h1>
+        <p className="text-gray-400 text-sm">Generate, customize, and print official Performance Review of Students (PROS) PDF documents</p>
       </div>
 
-      {/* Generator Card */}
-      <div className="glass-card p-6 rounded-2xl border border-cyan-500/20">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-cyan-400" />
-          Generate New Official PROS Academic Report
+      {/* Main Configuration Card */}
+      <div className="glass-card p-6 rounded-2xl border border-cyan-500/30 space-y-6">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+          <Layers className="w-5 h-5 text-cyan-400" /> 1. Select Report Target & Number of Subjects
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">Select Student</label>
-            <select
-              value={selectedStudent}
-              onChange={e => setSelectedStudent(e.target.value)}
-              className="input-field w-full"
-            >
-              <option value="">-- Choose Student --</option>
-              {students?.map((s: any) => (
-                <option key={s.student_id} value={s.student_id}>
-                  {s.register_number} - {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">Select Examination</label>
-            <select
-              value={selectedExam}
-              onChange={e => setSelectedExam(e.target.value)}
-              className="input-field w-full"
-            >
-              <option value="">-- Choose Exam --</option>
-              {exams?.map((e: any) => (
-                <option key={e.exam_id} value={e.exam_id}>
-                  {e.exam_name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Target Mode Picker: Particular Student vs Year Batch */}
+          <div className="space-y-3">
+            <label className="block text-xs font-semibold text-cyan-400 uppercase tracking-wider">
+              Choose Target Mode
+            </label>
 
-          <div className="flex items-end">
-            <button
-              onClick={() => setIsProsModalOpen(true)}
-              className="btn-primary w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 border-none shadow-lg shadow-cyan-500/20 cursor-pointer py-2.5"
-            >
-              <FileText className="w-4 h-4" />
-              Generate Official PROS PDF
-            </button>
-          </div>
-        </div>
-      </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setTargetMode('YEAR')}
+                className={`p-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                  targetMode === 'YEAR'
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md shadow-cyan-500/10'
+                    : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                <Calendar className="w-4 h-4" /> By Year / Batch
+              </button>
 
-      {/* Generated Reports Table */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-surface-900">
-          <h3 className="font-semibold text-white text-sm">Generated Reports History</h3>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/10 text-xs font-medium text-gray-400 uppercase bg-surface-900">
-                <th className="p-4">Reg No</th>
-                <th className="p-4">Student Name</th>
-                <th className="p-4">Exam</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Generated At</th>
-                <th className="p-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 text-sm">
-              {SEEDED_REPORTS.map((r: any) => (
-                <tr key={r.report_id} className="hover:bg-white/5 transition-colors">
-                  <td className="p-4 font-mono text-cyan-400 font-bold text-xs">{r.register_number}</td>
-                  <td className="p-4 text-white font-medium text-sm">{r.student_name}</td>
-                  <td className="p-4 text-gray-300 text-xs">{r.exam_name}</td>
-                  <td className="p-4">
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <CheckCircle className="w-3 h-3" /> Ready
-                    </span>
-                  </td>
-                  <td className="p-4 text-gray-400 text-xs font-mono">{new Date(r.generated_at).toLocaleString()}</td>
-                  <td className="p-4 text-right space-x-2">
-                    <button
-                      onClick={() => setIsProsModalOpen(true)}
-                      className="p-2 hover:bg-cyan-500/10 text-cyan-400 rounded-lg transition-colors cursor-pointer"
-                      title="Download PROS PDF"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => toast.success('PROS PDF report queued and sent via Meta WhatsApp Cloud API!')}
-                      className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded-lg transition-colors cursor-pointer"
-                      title="Send via WhatsApp"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* PROS Modal Prompt */}
-      {isProsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="glass-card max-w-lg w-full p-6 rounded-2xl space-y-4 border border-cyan-500/40 animate-slide-up">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-cyan-400" />
-                Configure PROS Academic Report PDF
-              </h2>
-              <button onClick={() => setIsProsModalOpen(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={() => setTargetMode('PARTICULAR')}
+                className={`p-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                  targetMode === 'PARTICULAR'
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-500/10'
+                    : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                <User className="w-4 h-4" /> Particular Student
               </button>
             </div>
 
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">For the Month of</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportMonth}
-                    onChange={e => setReportMonth(e.target.value)}
-                    placeholder="September 2025"
-                    className="input-field text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">Academic Year</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportAcademicYear}
-                    onChange={e => setReportAcademicYear(e.target.value)}
-                    placeholder="2025 - 2026"
-                    className="input-field text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-purple-400 uppercase mb-1">Attendance Cut-off Date</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportAttendanceDate}
-                    onChange={e => setReportAttendanceDate(e.target.value)}
-                    placeholder="15-09-2025"
-                    className="input-field text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-purple-400 uppercase mb-1">Attendance % As on Date</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportAttendancePct}
-                    onChange={e => setReportAttendancePct(e.target.value)}
-                    placeholder="88.5%"
-                    className="input-field text-sm font-mono font-bold text-emerald-400"
-                  />
-                </div>
-              </div>
-
+            {targetMode === 'YEAR' ? (
               <div>
-                <label className="block text-xs font-semibold text-yellow-400 uppercase mb-1">Remarks on Attendance</label>
-                <textarea
-                  rows={2}
-                  required
-                  value={reportAttendanceRemarks}
-                  onChange={e => setReportAttendanceRemarks(e.target.value)}
-                  className="input-field w-full text-xs leading-relaxed"
-                />
+                <label className="block text-xs font-medium text-gray-300 mb-1">Select Year / Batch</label>
+                <select
+                  value={selectedYearBatch}
+                  onChange={e => setSelectedYearBatch(e.target.value)}
+                  className="input-field w-full text-sm font-semibold bg-surface-900"
+                >
+                  <option value="2nd Year">2nd Year B.E. CS (49 Students)</option>
+                  <option value="3rd Year">3rd Year B.E. CS (48 Students)</option>
+                  <option value="ALL">All 97 Students</option>
+                </select>
               </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-1">Select Particular Student</label>
+                <select
+                  value={selectedStudentId}
+                  onChange={e => setSelectedStudentId(e.target.value)}
+                  className="input-field w-full text-sm font-semibold bg-surface-900"
+                >
+                  {ALL_ROSTER.map(s => (
+                    <option key={s.student_id} value={s.register_number}>
+                      {s.register_number} — {s.name} ({s.year})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Number of Enrolled Subjects Selector: 5 vs 6 Subjects */}
+          <div className="space-y-3">
+            <label className="block text-xs font-semibold text-purple-400 uppercase tracking-wider">
+              Enrolled Subjects Count for Term (5 vs 6 Subjects)
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSubjectCountScale(5)}
+                className={`p-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                  subjectCountScale === 5
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-500/10 scale-105'
+                    : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                📚 5 Subjects
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSubjectCountScale(6)}
+                className={`p-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                  subjectCountScale === 6
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-500/10 scale-105'
+                    : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                📚 6 Subjects
+              </button>
             </div>
 
-            <div className="flex gap-3 pt-3 justify-end border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setIsProsModalOpen(false)}
-                className="btn-secondary text-xs py-2 px-4"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={generateProsPdfReport}
-                className="btn-primary flex items-center gap-2 text-xs py-2 px-5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 border-none shadow-lg shadow-cyan-500/20 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                Generate & Print PROS PDF
-              </button>
-            </div>
+            <p className="text-xs text-gray-400">
+              Generates <strong className="text-purple-300">{subjectCountScale} Subject Rows</strong> in the Academic Performance table for each student.
+            </p>
           </div>
         </div>
-      )}
+
+        {/* Header Metadata Inputs */}
+        <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/10 pb-2 pt-2">
+          📅 2. Header & Attendance Cut-off Details
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">For the Month of</label>
+            <input
+              type="text"
+              required
+              value={reportMonth}
+              onChange={e => setReportMonth(e.target.value)}
+              placeholder="September 2025"
+              className="input-field text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">Academic Year</label>
+            <input
+              type="text"
+              required
+              value={reportAcademicYear}
+              onChange={e => setReportAcademicYear(e.target.value)}
+              placeholder="2025 - 2026"
+              className="input-field text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-purple-400 uppercase mb-1">Attendance Cut-off Date</label>
+            <input
+              type="text"
+              required
+              value={reportAttendanceDate}
+              onChange={e => setReportAttendanceDate(e.target.value)}
+              placeholder="15-09-2025"
+              className="input-field text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Individual Student Attendance Customizer */}
+        <h2 className="text-sm font-bold text-white flex items-center justify-between border-b border-white/10 pb-2 pt-2">
+          <span>📊 3. Individual Student Attendance % Customizer ({targetStudents.length} Students)</span>
+          <span className="text-xs text-gray-400 font-normal">Individual attendance differs per student</span>
+        </h2>
+
+        <div className="max-h-60 overflow-y-auto space-y-2 pr-1 divide-y divide-white/5">
+          {targetStudents.map(student => {
+            const currentAttendance = getStudentAttendance(student);
+            return (
+              <div key={student.student_id} className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="font-medium text-white">
+                  <span className="font-mono text-cyan-400 font-bold mr-2">{student.register_number}</span>
+                  {student.name} ({student.year})
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-gray-400">Attendance %:</label>
+                  <input
+                    type="text"
+                    value={currentAttendance}
+                    onChange={e => setCustomAttendanceMap(prev => ({ ...prev, [student.register_number]: e.target.value }))}
+                    className="input-field w-24 text-center font-mono font-bold text-emerald-400 py-1 text-xs"
+                    placeholder="88.5%"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Generate Button */}
+        <div className="pt-4 border-t border-white/10 flex justify-end">
+          <button
+            type="button"
+            onClick={generateProsPdfReport}
+            className="btn-primary flex items-center justify-center gap-2 text-sm py-3 px-8 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 border-none shadow-xl shadow-cyan-500/20 cursor-pointer font-bold"
+          >
+            <Download className="w-5 h-5" />
+            Generate & Print Official PROS PDF Report ({targetStudents.length} Students · {subjectCountScale} Subjects)
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

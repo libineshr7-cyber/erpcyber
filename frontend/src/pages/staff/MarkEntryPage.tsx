@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Send, ChevronDown, CheckCircle, Award, BookOpen, Clock, Smartphone, Target, FileText, Download, X } from 'lucide-react';
+import { Save, Send, ChevronDown, CheckCircle, Award, BookOpen, Clock, Smartphone, Target } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
@@ -46,15 +46,6 @@ export const MarkEntryPage: React.FC = () => {
   const [maxMarksScale, setMaxMarksScale] = useState<number>(50);
   const [marks, setMarks] = useState<Record<string, MarkEntry>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
-
-  // PROS PDF Report Modal Prompt State
-  const [isProsModalOpen, setIsProsModalOpen] = useState(false);
-  const [reportMonth, setReportMonth] = useState('September 2025');
-  const [reportAcademicYear, setReportAcademicYear] = useState('2025 - 2026');
-  const [reportAttendanceDate, setReportAttendanceDate] = useState('15-09-2025');
-  const [reportAttendancePct, setReportAttendancePct] = useState('88.5%');
-  const [reportAttendanceRemarks, setReportAttendanceRemarks] = useState('Satisfactory attendance record. Eligible for End Semester examinations.');
-  const [selectedStudentForPros, setSelectedStudentForPros] = useState<string>('ALL');
 
   const qc = useQueryClient();
 
@@ -128,160 +119,7 @@ export const MarkEntryPage: React.FC = () => {
     }));
   };
 
-  const calculateGradeAndResult = (m: number | '', isAbsent: boolean, maxScale: number) => {
-    if (isAbsent || m === '') return { marksOut100: '0', grade: 'RA', result: 'F' };
-    const num = Number(m);
-    const scaled = Math.round((num / maxScale) * 100);
-    let grade = 'RA';
-    let result = 'F';
-
-    if (scaled >= 90) { grade = 'O'; result = 'P'; }
-    else if (scaled >= 80) { grade = 'A+'; result = 'P'; }
-    else if (scaled >= 70) { grade = 'A'; result = 'P'; }
-    else if (scaled >= 60) { grade = 'B+'; result = 'P'; }
-    else if (scaled >= 50) { grade = 'B'; result = 'P'; }
-
-    return { marksOut100: scaled.toString(), grade, result };
-  };
-
-  const generateProsPdfReport = () => {
-    const printWin = window.open('', '_blank');
-    if (!printWin) {
-      toast.error('Please allow popups to generate PROS PDF Report');
-      return;
-    }
-
-    const targetStudents = selectedStudentForPros === 'ALL'
-      ? studentsList.slice(0, 5) // Export first batch if ALL
-      : studentsList.filter(s => s.student_id === selectedStudentForPros || s.register_number === selectedStudentForPros);
-
-    const pagesHtml = targetStudents.map(student => {
-      const is3rd = student.register_number.startsWith('CS30');
-      const section = is3rd ? 'B' : 'A';
-      const branch = 'B.E. Computer Science & Engineering';
-
-      // Subjects table rows
-      const rows = DEFAULT_SUBJECTS.map((sub, idx) => {
-        const studentMarkEntry = marks[student.student_id];
-        const isAbsent = studentMarkEntry?.isAbsent || false;
-        const rawMark = studentMarkEntry?.marksObtained !== undefined ? studentMarkEntry.marksObtained : (40 + ((idx * 3) % 10));
-        
-        const { marksOut100, grade, result } = calculateGradeAndResult(rawMark, isAbsent, maxMarksScale);
-
-        return `
-          <tr>
-            <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">${idx + 1}</td>
-            <td style="font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">${sub.subject_code}</td>
-            <td style="padding: 6px; border: 1px solid #000; font-weight: 500;">${sub.subject_name}</td>
-            <td style="text-align: center; font-family: monospace; font-weight: bold; padding: 6px; border: 1px solid #000;">${marksOut100}</td>
-            <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">${grade}</td>
-            <td style="text-align: center; font-weight: bold; padding: 6px; border: 1px solid #000;">${result}</td>
-          </tr>
-        `;
-      }).join('');
-
-      return `
-        <div style="page-break-after: always; padding: 20px 30px; font-family: Arial, Helvetica, sans-serif; color: #000;">
-          <!-- Header Emblem & Institution Title -->
-          <div style="text-align: center; margin-bottom: 15px;">
-            <div style="display: inline-block; width: 60px; height: 60px; border-radius: 50%; border: 2px solid #b91c1c; background: #fff; line-height: 60px; font-weight: bold; color: #b91c1c; font-size: 11px; margin-bottom: 5px;">
-              PEC 2001
-            </div>
-            <h2 style="margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px;">PRATHYUSHA ENGINEERING COLLEGE</h2>
-            <div style="font-size: 13px; font-style: italic; margin-top: 2px; color: #222;">(An Autonomous Institution)</div>
-            <h3 style="margin: 8px 0 2px 0; font-size: 15px; font-weight: bold; text-decoration: underline;">PERFORMANCE REVIEW OF STUDENTS (PROS)</h3>
-            <div style="font-size: 13px; font-weight: bold;">
-              For the Month of [ <span style="font-weight: normal;">${reportMonth}</span> ] – Academic Year [ <span style="font-weight: normal;">${reportAcademicYear}</span> ]
-            </div>
-          </div>
-
-          <!-- Student Information Grid Box -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px;">
-            <tr>
-              <td style="padding: 8px; border: 1px solid #000; width: 15%; font-weight: bold; background: #fafafa;">Student Name</td>
-              <td style="padding: 8px; border: 1px solid #000; width: 35%; font-weight: bold;">[ ${student.name} ]</td>
-              <td style="padding: 8px; border: 1px solid #000; width: 15%; font-weight: bold; background: #fafafa;">Section</td>
-              <td style="padding: 8px; border: 1px solid #000; width: 35%; font-weight: bold;">[ ${section} ]</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; border: 1px solid #000; font-weight: bold; background: #fafafa;">Reg. No.</td>
-              <td style="padding: 8px; border: 1px solid #000; font-family: monospace; font-weight: bold; font-size: 14px;">[ ${student.register_number} ]</td>
-              <td style="padding: 8px; border: 1px solid #000; font-weight: bold; background: #fafafa;">Branch</td>
-              <td style="padding: 8px; border: 1px solid #000; font-weight: bold;">[ ${branch} ]</td>
-            </tr>
-          </table>
-
-          <!-- Academic Performance Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px;">
-            <thead>
-              <tr style="background-color: #fafafa;">
-                <td colSpan="6" style="text-align: center; font-weight: bold; padding: 8px; border: 1px solid #000; font-size: 13px; letter-spacing: 0.5px;">
-                  ACADEMIC PERFORMANCE
-                </td>
-              </tr>
-              <tr style="background-color: #f1f5f9;">
-                <th style="width: 40px; text-align: center; padding: 8px; border: 1px solid #000;">S. No</th>
-                <th style="width: 100px; padding: 8px; border: 1px solid #000;">Subject Code</th>
-                <th style="padding: 8px; border: 1px solid #000;">Subject Name</th>
-                <th style="width: 110px; text-align: center; padding: 8px; border: 1px solid #000;">Marks<br/><span style="font-size: 10px; font-weight: normal;">(Out of 100)</span></th>
-                <th style="width: 70px; text-align: center; padding: 8px; border: 1px solid #000;">Grade</th>
-                <th style="width: 90px; text-align: center; padding: 8px; border: 1px solid #000;">Pass/ Fail<br/><span style="font-size: 10px; font-weight: normal;">(P/F)</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-              <tr>
-                <td colSpan="6" style="padding: 8px; border: 1px solid #000;">
-                  <strong>Attendance % As on [ <span style="font-weight: normal;">${reportAttendanceDate}</span> ]:</strong>
-                  <span style="margin-left: 20px; font-family: monospace; font-size: 14px; font-weight: bold; color: #15803d;">[ ${reportAttendancePct} ]</span>
-                </td>
-              </tr>
-              <tr>
-                <td colSpan="2" style="padding: 10px; border: 1px solid #000; font-weight: bold; background: #fafafa; vertical-align: top;">
-                  Remarks on Attendance
-                </td>
-                <td colSpan="4" style="padding: 10px; border: 1px solid #000; font-size: 12px; line-height: 1.5; vertical-align: top;">
-                  [ ${reportAttendanceRemarks} ]
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <!-- Bottom Official Advisory Notes -->
-          <div style="font-size: 11px; line-height: 1.6; margin-top: 15px; border-top: 1px solid #000; padding-top: 10px;">
-            <p style="margin: 0 0 5px 0;">
-              <strong>Note on attendance:</strong> Students secured less than 75% of attendance will not be permitted to appear current semester exams and detained for next semester.
-            </p>
-            <p style="margin: 0;">
-              <strong>Note:</strong> No digital note is circulated to the students for exam preparation. Kindly advice your ward to keep mobile phones away while studying and preparing for exams.
-            </p>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>PROS Academic Performance Review Report - Prathyusha Engineering College</title>
-          <style>
-            @page { size: A4 portrait; margin: 15mm; }
-            body { margin: 0; padding: 0; background: #fff; }
-          </style>
-        </head>
-        <body>
-          ${pagesHtml}
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `);
-    printWin.document.close();
-    setIsProsModalOpen(false);
-    toast.success('PROS PDF Academic Report generated successfully!');
-  };
+  const selectedExamObj = examsList.find((e: any) => e.exam_id === selectedExam) || DEFAULT_EXAMS[0];
 
   return (
     <div className="space-y-6">
@@ -291,23 +129,12 @@ export const MarkEntryPage: React.FC = () => {
           <p className="text-gray-400 text-sm">Select course and exam assessment (Out of 50 or 100 Marks) for all 97 students</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {isSubmitted && (
-            <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400 animate-spin" />
-              SUBMITTED TO HOD FOR APPROVAL
-            </span>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsProsModalOpen(true)}
-            className="btn-primary flex items-center justify-center gap-2 text-xs py-2.5 px-4 shadow-lg shadow-cyan-500/20 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 border-none cursor-pointer"
-          >
-            <FileText className="w-4 h-4" />
-            Generate PROS PDF Report
-          </button>
-        </div>
+        {isSubmitted && (
+          <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+            SUBMITTED TO HOD FOR APPROVAL
+          </span>
+        )}
       </div>
 
       {/* Select Subject, Select Exam, and Max Marks Controls */}
@@ -458,120 +285,6 @@ export const MarkEntryPage: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* Interactive Prompt Modal for PROS PDF Report Configuration */}
-      {isProsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="glass-card max-w-lg w-full p-6 rounded-2xl space-y-4 border border-cyan-500/40 animate-slide-up">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-cyan-400" />
-                Configure PROS Academic Report PDF
-              </h2>
-              <button onClick={() => setIsProsModalOpen(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">For the Month of</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportMonth}
-                    onChange={e => setReportMonth(e.target.value)}
-                    placeholder="September 2025"
-                    className="input-field text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">Academic Year</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportAcademicYear}
-                    onChange={e => setReportAcademicYear(e.target.value)}
-                    placeholder="2025 - 2026"
-                    className="input-field text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-purple-400 uppercase mb-1">Attendance Cut-off Date</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportAttendanceDate}
-                    onChange={e => setReportAttendanceDate(e.target.value)}
-                    placeholder="15-09-2025"
-                    className="input-field text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-purple-400 uppercase mb-1">Attendance % As on Date</label>
-                  <input
-                    type="text"
-                    required
-                    value={reportAttendancePct}
-                    onChange={e => setReportAttendancePct(e.target.value)}
-                    placeholder="88.5%"
-                    className="input-field text-sm font-mono font-bold text-emerald-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-yellow-400 uppercase mb-1">Remarks on Attendance</label>
-                <textarea
-                  rows={2}
-                  required
-                  value={reportAttendanceRemarks}
-                  onChange={e => setReportAttendanceRemarks(e.target.value)}
-                  className="input-field w-full text-xs leading-relaxed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-emerald-400 uppercase mb-1">Select Target Student</label>
-                <select
-                  value={selectedStudentForPros}
-                  onChange={e => setSelectedStudentForPros(e.target.value)}
-                  className="input-field w-full text-sm font-semibold bg-surface-900"
-                >
-                  <option value="ALL">Export Batch PROS Reports (All Students)</option>
-                  {studentsList.map(s => (
-                    <option key={s.student_id} value={s.student_id}>
-                      {s.register_number} — {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-3 justify-end border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setIsProsModalOpen(false)}
-                className="btn-secondary text-xs py-2 px-4"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={generateProsPdfReport}
-                className="btn-primary flex items-center gap-2 text-xs py-2 px-5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 border-none shadow-lg shadow-cyan-500/20 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                Generate & Print PROS PDF
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
