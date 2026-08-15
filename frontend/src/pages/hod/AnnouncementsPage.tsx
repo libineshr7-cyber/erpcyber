@@ -60,7 +60,7 @@ export const AnnouncementsPage: React.FC = () => {
 
   const { data: announcements, isLoading } = useQuery({
     queryKey: ['announcements-list'],
-    queryFn: () => api.get('/api/hod/announcements').then(r => r.data.data || []).catch(() => null),
+    queryFn: () => api.get('/hod/announcements').then(r => r.data.data || []).catch(() => null),
   });
 
   const rawAnnouncements = [...DEFAULT_ANNOUNCEMENTS, ...localAnnouncements, ...(announcements || [])];
@@ -162,7 +162,7 @@ export const AnnouncementsPage: React.FC = () => {
         };
 
         try {
-          await api.post('/api/hod/announcements', { title: cleanTitle, content, category, pinned });
+          await api.post('/hod/announcements', { title: cleanTitle, content, category, pinned }).catch(() => {});
         } catch {}
 
         const updatedLocal = [newAnnouncement, ...localAnnouncements];
@@ -183,7 +183,7 @@ export const AnnouncementsPage: React.FC = () => {
 
   const deleteAnnouncement = (id: string, annTitle: string) => {
     if (confirm(`Are you sure you want to permanently delete announcement "${annTitle}"?`)) {
-      api.delete(`/api/hod/announcements/${id}`).catch(() => {});
+      api.delete(`/hod/announcements/${id}`).catch(() => {});
 
       const updatedDeleted = new Set(deletedAnnouncementIds);
       updatedDeleted.add(id);

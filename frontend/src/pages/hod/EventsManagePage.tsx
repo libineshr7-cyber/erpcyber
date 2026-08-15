@@ -61,7 +61,7 @@ export const EventsManagePage: React.FC = () => {
 
   const { data: events, isLoading } = useQuery({
     queryKey: ['events-list'],
-    queryFn: () => api.get('/api/hod/events').then(r => r.data.data || []).catch(() => null),
+    queryFn: () => api.get('/hod/events').then(r => r.data.data || []).catch(() => null),
   });
 
   const rawEvents = [...DEFAULT_EVENTS, ...localEvents, ...(events || [])];
@@ -166,7 +166,7 @@ export const EventsManagePage: React.FC = () => {
         };
 
         try {
-          await api.post('/api/hod/events', { title: cleanTitle, description, eventType, eventDate, venue });
+          await api.post('/hod/events', { title: cleanTitle, description, eventType, eventDate, venue }).catch(() => {});
         } catch {}
 
         const updatedLocal = [newEvent, ...localEvents];
@@ -187,7 +187,7 @@ export const EventsManagePage: React.FC = () => {
 
   const deleteEvent = (eventId: string, eventTitle: string) => {
     if (confirm(`Are you sure you want to permanently delete event "${eventTitle}"?`)) {
-      api.delete(`/api/hod/events/${eventId}`).catch(() => {});
+      api.delete(`/hod/events/${eventId}`).catch(() => {});
 
       const updatedDeleted = new Set(deletedEventIds);
       updatedDeleted.add(eventId);
