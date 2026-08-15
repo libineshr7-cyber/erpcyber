@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Megaphone, X } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -14,6 +14,7 @@ export const TopBar: React.FC = () => {
   const navigate = useNavigate();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [relevantNotifs, setRelevantNotifs] = useState<any[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const isHOD = user?.role?.toUpperCase().includes('HOD');
 
@@ -54,16 +55,27 @@ export const TopBar: React.FC = () => {
     return () => clearInterval(interval);
   }, [user?.role, isHOD]);
 
+  // Click outside listener to close notification popover
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login', { replace: true });
   };
 
   return (
-    <div className="flex items-center gap-4 relative">
+    <div className="flex items-center gap-4 relative z-50">
       {/* Bell Notification Icon — Rendered ONLY for Staff & Students (hidden for HOD) */}
       {!isHOD && (
-        <div className="relative">
+        <div ref={notifRef} className="relative z-50">
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
             className="p-2 hover:bg-white/10 text-cyan-400 rounded-xl transition-colors relative cursor-pointer"
@@ -78,15 +90,15 @@ export const TopBar: React.FC = () => {
             )}
           </button>
 
-          {/* Notifications Dropdown Popover */}
+          {/* Notifications Dropdown Popover — High z-index z-[9999] so it stays foreground on top of main content */}
           {isNotifOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 glass-card p-4 rounded-2xl border border-cyan-500/30 shadow-2xl z-50 animate-slide-up space-y-3">
+            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 glass-card p-4 rounded-2xl border border-cyan-500/50 shadow-2xl z-[9999] bg-surface-900/95 backdrop-blur-2xl animate-slide-up space-y-3">
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
                 <span className="font-bold text-white text-sm flex items-center gap-2">
                   <Megaphone className="w-4 h-4 text-cyan-400" />
                   HOD Notifications ({relevantNotifs.length})
                 </span>
-                <button onClick={() => setIsNotifOpen(false)} className="text-gray-400 hover:text-white">
+                <button onClick={() => setIsNotifOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
                   <X className="w-4 h-4" />
                 </button>
               </div>
