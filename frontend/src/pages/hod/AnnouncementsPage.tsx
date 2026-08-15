@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Megaphone, Plus, Pin, Edit2, Trash2, Download } from 'lucide-react';
+import { Megaphone, Plus, Pin, Edit2, Trash2, Download, Users, UserCheck, GraduationCap } from 'lucide-react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
 const DEFAULT_ANNOUNCEMENTS = [
-  { announcement_id: 'ann_1', title: 'Schedule for Internal Assessment-1 (IAT-1)', content: 'IAT-1 exams for 2nd and 3rd year B.E. Cybersecurity students commence on Sept 15, 2025.', category: 'ACADEMIC', pinned: true, created_at: '2025-09-01' },
-  { announcement_id: 'ann_2', title: 'Registration Open for National Cyber CTF', content: 'Register your teams of 3 for the upcoming 24-hour CTF. Prizes worth Rs. 50,000.', category: 'EVENT', pinned: false, created_at: '2025-09-05' },
-  { announcement_id: 'ann_3', title: 'Circular: Mandatory Attendance 75% Criteria', content: 'Students with less than 75% attendance in theory & practical subjects will not be permitted for End Sem exams.', category: 'CIRCULAR', pinned: false, created_at: '2025-09-10' },
+  { announcement_id: 'ann_1', title: 'Schedule for Internal Assessment-1 (IAT-1)', content: 'IAT-1 exams for 2nd and 3rd year B.E. Cybersecurity students commence on Sept 15, 2025.', category: 'EXAM', target_audience: 'ALL_STUDENTS', pinned: true, created_at: '2025-09-01' },
+  { announcement_id: 'ann_2', title: 'Staff Circular: Submit Internal Marks by Friday', content: 'All teaching faculty members must complete mark entry and submit for HOD approval before Sept 20.', category: 'CIRCULAR', target_audience: 'ALL_STAFF', pinned: true, created_at: '2025-09-05' },
+  { announcement_id: 'ann_3', title: 'Registration Open for National Cyber CTF Hackathon', content: 'Register your teams of 3 for the upcoming 24-hour CTF. Open to all students & faculty.', category: 'EVENT', target_audience: 'EVERYONE', pinned: false, created_at: '2025-09-10' },
 ];
 
 export const AnnouncementsPage: React.FC = () => {
@@ -54,6 +54,7 @@ export const AnnouncementsPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('ACADEMIC');
+  const [targetAudience, setTargetAudience] = useState<'ALL_STUDENTS' | 'ALL_STAFF' | 'EVERYONE'>('ALL_STUDENTS');
   const [pinned, setPinned] = useState(false);
 
   const qc = useQueryClient();
@@ -96,6 +97,7 @@ export const AnnouncementsPage: React.FC = () => {
     setTitle('');
     setContent('');
     setCategory('ACADEMIC');
+    setTargetAudience('ALL_STUDENTS');
     setPinned(false);
     setIsAddModalOpen(true);
   };
@@ -105,6 +107,7 @@ export const AnnouncementsPage: React.FC = () => {
     setTitle(a.title);
     setContent(a.content || '');
     setCategory(a.category || 'ACADEMIC');
+    setTargetAudience(a.target_audience || 'ALL_STUDENTS');
     setPinned(Boolean(a.pinned));
   };
 
@@ -134,6 +137,7 @@ export const AnnouncementsPage: React.FC = () => {
           title: cleanTitle,
           content,
           category,
+          target_audience: targetAudience,
           pinned,
         };
 
@@ -147,7 +151,7 @@ export const AnnouncementsPage: React.FC = () => {
         setEditedAnnouncementsMap(newMap);
         localStorage.setItem('erp_edited_announcements', JSON.stringify(newMap));
 
-        logAuditAction('MODIFY_ANNOUNCEMENT', `Modified circular announcement: "${cleanTitle}" (${category})`);
+        logAuditAction('MODIFY_ANNOUNCEMENT', `Modified announcement for ${targetAudience}: "${cleanTitle}" (${category})`);
         toast.success(`Announcement "${cleanTitle}" modified permanently!`);
         setEditingAnnouncement(null);
       } else {
@@ -157,20 +161,23 @@ export const AnnouncementsPage: React.FC = () => {
           title: cleanTitle,
           content,
           category,
+          target_audience: targetAudience,
           pinned,
           created_at: new Date().toISOString(),
         };
 
         try {
-          await api.post('/hod/announcements', { title: cleanTitle, content, category, pinned }).catch(() => {});
+          await api.post('/hod/announcements', { title: cleanTitle, content, category, targetAudience, pinned }).catch(() => {});
         } catch {}
 
         const updatedLocal = [newAnnouncement, ...localAnnouncements];
         setLocalAnnouncements(updatedLocal);
         localStorage.setItem('erp_custom_announcements', JSON.stringify(updatedLocal));
 
-        logAuditAction('CREATE_ANNOUNCEMENT', `Published new department announcement: "${cleanTitle}" (${category})`);
-        toast.success(`Announcement "${cleanTitle}" published permanently!`);
+        const targetText = targetAudience === 'ALL_STUDENTS' ? 'Students Portal' : targetAudience === 'ALL_STAFF' ? 'Staff Portal' : 'Students & Staff Portals';
+        logAuditAction('CREATE_ANNOUNCEMENT', `Published announcement to ${targetText}: "${cleanTitle}" (${category})`);
+        
+        toast.success(`📢 Announcement published and sent as a live notification to ${targetText}!`, { duration: 5000 });
         setIsAddModalOpen(false);
       }
     } finally {
@@ -201,6 +208,28 @@ export const AnnouncementsPage: React.FC = () => {
     }
   };
 
+  const renderTargetBadge = (target: string) => {
+    if (target === 'ALL_STAFF') {
+      return (
+        <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1">
+          <UserCheck className="w-3 h-3" /> Staff Only
+        </span>
+      );
+    }
+    if (target === 'EVERYONE') {
+      return (
+        <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+          <Users className="w-3 h-3" /> Everyone (Students & Staff)
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1">
+        <GraduationCap className="w-3 h-3" /> Students Only
+      </span>
+    );
+  };
+
   const downloadAnnouncementsPdf = () => {
     const printWin = window.open('', '_blank');
     if (!printWin) {
@@ -213,6 +242,7 @@ export const AnnouncementsPage: React.FC = () => {
         <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
         <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${a.title}</td>
         <td style="padding: 8px; border: 1px solid #ddd; font-family: monospace; color: #0284c7;">${a.category || 'GENERAL'}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${a.target_audience || 'ALL_STUDENTS'}</td>
         <td style="padding: 8px; border: 1px solid #ddd;">${new Date(a.created_at || Date.now()).toLocaleDateString()}</td>
         <td style="padding: 8px; border: 1px solid #ddd;">${a.content}</td>
       </tr>
@@ -246,6 +276,7 @@ export const AnnouncementsPage: React.FC = () => {
                 <th style="width: 40px; text-align: center;">S.No</th>
                 <th>Announcement Title</th>
                 <th>Category</th>
+                <th>Target Audience</th>
                 <th>Published Date</th>
                 <th>Details</th>
               </tr>
@@ -275,7 +306,7 @@ export const AnnouncementsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white heading-gradient">Department Announcements ({activeAnnouncements.length})</h1>
-          <p className="text-gray-400 text-sm">Publish notices, exam circulars, and official updates (100% Refresh Persistent & Real-Time Audited)</p>
+          <p className="text-gray-400 text-sm">HOD Admin can target notices specifically to Students, Staff, or Everyone (Live Notification Dispatched)</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -307,10 +338,13 @@ export const AnnouncementsPage: React.FC = () => {
           activeAnnouncements.map((a: any) => (
             <div key={a.announcement_id || a.title} className={`glass-card p-6 rounded-2xl space-y-3 transition-all ${a.pinned ? 'border-cyan-500/40 bg-cyan-950/10' : 'border-white/5'}`}>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="px-3 py-1 text-xs font-bold rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                     {a.category || 'GENERAL'}
                   </span>
+
+                  {renderTargetBadge(a.target_audience || 'ALL_STUDENTS')}
+
                   {a.pinned && (
                     <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-purple-500/20 text-purple-300 flex items-center gap-1 border border-purple-500/30">
                       <Pin className="w-3 h-3" /> PINNED
@@ -355,6 +389,30 @@ export const AnnouncementsPage: React.FC = () => {
 
             <form onSubmit={handleSaveAnnouncement} className="space-y-3 text-sm">
               <div>
+                <label className="block text-xs font-semibold text-cyan-400 uppercase mb-1">1. Target Audience Notification</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL_STUDENTS', label: '🎓 Students Only' },
+                    { id: 'ALL_STAFF', label: '👨‍🏫 Staff Only' },
+                    { id: 'EVERYONE', label: '🌐 Everyone' },
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTargetAudience(t.id as any)}
+                      className={`p-2.5 rounded-xl text-xs font-bold transition-all border ${
+                        targetAudience === t.id
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md'
+                          : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-xs text-gray-300 mb-1">Notice Title</label>
                 <input
                   type="text"
@@ -384,7 +442,7 @@ export const AnnouncementsPage: React.FC = () => {
                   required
                   value={content}
                   onChange={ev => setContent(ev.target.value)}
-                  placeholder="Detailed circular text for students and faculty..."
+                  placeholder="Detailed circular text for targeted students/staff..."
                   className="input-field w-full"
                 />
               </div>
@@ -397,7 +455,7 @@ export const AnnouncementsPage: React.FC = () => {
                     onChange={ev => setPinned(ev.target.checked)}
                     className="accent-cyan-500 w-4 h-4 rounded cursor-pointer"
                   />
-                  Pin to top of student portal
+                  Pin to top of target portal
                 </label>
 
                 <div className="flex gap-2">
