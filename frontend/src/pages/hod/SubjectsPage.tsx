@@ -32,8 +32,10 @@ export const SubjectsPage: React.FC = () => {
   const [editingSubject, setEditingSubject] = useState<any | null>(null);
   const [assigningSubject, setAssigningSubject] = useState<any | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState('ST001');
+  const [isSaving, setIsSaving] = useState(false);
 
   const [localSubjects, setLocalSubjects] = useState<any[]>([]);
+  const [editedSubjectsMap, setEditedSubjectsMap] = useState<Record<string, any>>({});
   const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(new Set());
 
   // Form State for Subject
@@ -65,7 +67,13 @@ export const SubjectsPage: React.FC = () => {
   });
 
   const staffList = staffData?.length ? staffData : DEFAULT_STAFF_MEMBERS;
-  const baseSubjects = apiSubjects?.length ? apiSubjects : [...localSubjects, ...DEFAULT_SUBJECTS];
+  const rawSubjects = apiSubjects?.length ? apiSubjects : [...localSubjects, ...DEFAULT_SUBJECTS];
+
+  // Merge edits directly on top of raw items so modifications ALWAYS stick!
+  const baseSubjects = rawSubjects.map(sub => {
+    const key = sub.subject_id || sub.subject_code;
+    return editedSubjectsMap[key] || editedSubjectsMap[sub.subject_code] || sub;
+  });
 
   // Filter out deleted subjects permanently
   const activeSubjects = baseSubjects.filter(s => !deletedSubjectIds.has(s.subject_id) && !deletedSubjectIds.has(s.subject_code));
@@ -95,6 +103,8 @@ export const SubjectsPage: React.FC = () => {
 
   const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+
     const code = subjectCode.trim().toUpperCase();
     const yr = Number(yearOfStudy);
 
@@ -109,69 +119,80 @@ export const SubjectsPage: React.FC = () => {
       }
     }
 
-    if (editingSubject) {
-      // Modify/Edit existing subject
-      const updated = {
-        ...editingSubject,
-        subject_code: code,
-        subject_name: subjectName,
-        subject_type: subjectType,
-        credits: Number(credits),
-        semester_number: Number(semesterNumber),
-        year_of_study: yr,
-        assigned_teacher: assignedTeacher,
-      };
+    setIsSaving(true);
 
-      try {
-        await api.put(`/api/subjects/${editingSubject.subject_id}`, {
-          subjectCode: code,
-          subjectName,
-          subjectType,
+    try {
+      if (editingSubject) {
+        // Modify/Edit existing subject
+        const updated = {
+          ...editingSubject,
+          subject_code: code,
+          subject_name: subjectName,
+          subject_type: subjectType,
           credits: Number(credits),
-          semesterNumber: Number(semesterNumber),
-          yearOfStudy: yr,
-        });
-      } catch {}
+          semester_number: Number(semesterNumber),
+          year_of_study: yr,
+          assigned_teacher: assignedTeacher,
+        };
 
-      setLocalSubjects(prev => prev.map(s => (s.subject_id === editingSubject.subject_id || s.subject_code === editingSubject.subject_code) ? updated : s));
-      toast.success(`Subject ${code} updated successfully!`);
-      setEditingSubject(null);
-    } else {
-      // Add new subject
-      const newSub = {
-        subject_id: `sub_${Date.now()}`,
-        subject_code: code,
-        subject_name: subjectName,
-        subject_type: subjectType,
-        credits: Number(credits),
-        semester_number: Number(semesterNumber),
-        year_of_study: yr,
-        maximum_marks: 100,
-        passing_marks: 50,
-        assigned_teacher: assignedTeacher,
-      };
+        const key = editingSubject.subject_id || editingSubject.subject_code;
+        setEditedSubjectsMap(prev => ({
+          ...prev,
+          [key]: updated,
+          [code]: updated,
+        }));
 
-      try {
-        await api.post('/api/subjects', {
-          subjectCode: code,
-          subjectName,
-          subjectType,
+        try {
+          await api.put(`/api/subjects/${editingSubject.subject_id}`, {
+            subjectCode: code,
+            subjectName,
+            subjectType,
+            credits: Number(credits),
+            semesterNumber: Number(semesterNumber),
+            yearOfStudy: yr,
+          });
+        } catch {}
+
+        toast.success(`Subject ${code} modified and updated successfully!`);
+        setEditingSubject(null);
+      } else {
+        // Add new subject
+        const newSub = {
+          subject_id: `sub_${Date.now()}`,
+          subject_code: code,
+          subject_name: subjectName,
+          subject_type: subjectType,
           credits: Number(credits),
-          semesterNumber: Number(semesterNumber),
-          yearOfStudy: yr,
-          maximumMarks: 100,
-          passingMarks: 50,
-        });
-      } catch {}
+          semester_number: Number(semesterNumber),
+          year_of_study: yr,
+          maximum_marks: 100,
+          passing_marks: 50,
+          assigned_teacher: assignedTeacher,
+        };
 
-      setLocalSubjects(prev => [newSub, ...prev]);
-      toast.success(`Course ${code} created successfully!`);
-      setIsAddModalOpen(false);
+        try {
+          await api.post('/api/subjects', {
+            subjectCode: code,
+            subjectName,
+            subjectType,
+            credits: Number(credits),
+            semesterNumber: Number(semesterNumber),
+            yearOfStudy: yr,
+            maximumMarks: 100,
+            passingMarks: 50,
+          });
+        } catch {}
+
+        setLocalSubjects(prev => [newSub, ...prev]);
+        toast.success(`Course ${code} created successfully!`);
+        setIsAddModalOpen(false);
+      }
+    } finally {
+      setIsSaving(false);
+      setSubjectCode('');
+      setSubjectName('');
+      qc.invalidateQueries({ queryKey: ['subjects-list'] });
     }
-
-    setSubjectCode('');
-    setSubjectName('');
-    qc.invalidateQueries({ queryKey: ['subjects-list'] });
   };
 
   const handleDeleteSubject = (subjectId: string, code: string) => {
@@ -193,11 +214,13 @@ export const SubjectsPage: React.FC = () => {
     const teacher = staffList.find((s: any) => s.employee_id === selectedStaffId || s.staff_id === selectedStaffId) || staffList[0];
     const teacherNameLabel = `${teacher.name} (${teacher.employee_id || 'ST001'})`;
 
-    setLocalSubjects(prev => prev.map(s => {
-      if (s.subject_id === assigningSubject.subject_id || s.subject_code === assigningSubject.subject_code) {
-        return { ...s, assigned_teacher: teacherNameLabel };
-      }
-      return s;
+    const updated = { ...assigningSubject, assigned_teacher: teacherNameLabel };
+    const key = assigningSubject.subject_id || assigningSubject.subject_code;
+
+    setEditedSubjectsMap(prev => ({
+      ...prev,
+      [key]: updated,
+      [assigningSubject.subject_code]: updated,
     }));
 
     toast.success(`Assigned ${assigningSubject.subject_code} to ${teacherNameLabel}!`);
@@ -549,9 +572,10 @@ export const SubjectsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary text-xs"
+                  disabled={isSaving}
+                  className="btn-primary text-xs disabled:opacity-50"
                 >
-                  {editingSubject ? 'Save Changes' : 'Save Subject'}
+                  {isSaving ? 'Saving...' : editingSubject ? 'Save Changes' : 'Save Subject'}
                 </button>
               </div>
             </form>

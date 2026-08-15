@@ -43,8 +43,10 @@ export const StudentsPage: React.FC = () => {
   const [yearFilter, setYearFilter] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any | null>(null);
-  
+  const [isSaving, setIsSaving] = useState(false);
+
   const [localStudents, setLocalStudents] = useState<any[]>([]);
+  const [editedStudentsMap, setEditedStudentsMap] = useState<Record<string, any>>({});
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   // New/Edit Student Form State
@@ -70,7 +72,13 @@ export const StudentsPage: React.FC = () => {
   });
 
   const apiStudents = data?.data || [];
-  const baseStudents = apiStudents.length > 0 ? apiStudents : [...localStudents, ...SEEDED_STUDENTS];
+  const rawStudents = apiStudents.length > 0 ? apiStudents : [...localStudents, ...SEEDED_STUDENTS];
+
+  // Merge edits directly on top of raw items so modifications ALWAYS stick!
+  const baseStudents = rawStudents.map(s => {
+    const key = s.student_id || s.register_number;
+    return editedStudentsMap[key] || editedStudentsMap[s.register_number] || s;
+  });
 
   // Filter out deleted IDs permanently
   const activeStudents = baseStudents.filter(s => !deletedIds.has(s.student_id) && !deletedIds.has(s.register_number));
@@ -94,6 +102,7 @@ export const StudentsPage: React.FC = () => {
 
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
 
     const cleanReg = registerNumber.trim().toUpperCase();
 
@@ -108,64 +117,75 @@ export const StudentsPage: React.FC = () => {
       }
     }
 
-    if (editingStudent) {
-      // Edit existing student
-      const updated = {
-        ...editingStudent,
-        register_number: cleanReg,
-        name,
-        programme,
-        current_year: Number(currentYear),
-        current_semester: Number(currentSemester),
-        batch,
-      };
+    setIsSaving(true);
 
-      try {
-        await api.put(`/api/students/${editingStudent.student_id}`, {
-          registerNumber: cleanReg,
+    try {
+      if (editingStudent) {
+        // Edit existing student
+        const updated = {
+          ...editingStudent,
+          register_number: cleanReg,
           name,
           programme,
-          currentYear: Number(currentYear),
-          currentSemester: Number(currentSemester),
+          current_year: Number(currentYear),
+          current_semester: Number(currentSemester),
           batch,
-        });
-      } catch {}
+        };
 
-      setLocalStudents(prev => prev.map(s => s.student_id === editingStudent.student_id ? updated : s));
-      toast.success(`Student ${cleanReg} updated successfully!`);
-      setEditingStudent(null);
-    } else {
-      // Add new student
-      const newStudent = {
-        student_id: `custom_${Date.now()}`,
-        register_number: cleanReg,
-        name,
-        programme,
-        current_year: Number(currentYear),
-        current_semester: Number(currentSemester),
-        batch,
-      };
+        const key = editingStudent.student_id || editingStudent.register_number;
+        setEditedStudentsMap(prev => ({
+          ...prev,
+          [key]: updated,
+          [cleanReg]: updated,
+        }));
 
-      try {
-        await api.post('/api/students', {
-          registerNumber: cleanReg,
+        try {
+          await api.put(`/api/students/${editingStudent.student_id}`, {
+            registerNumber: cleanReg,
+            name,
+            programme,
+            currentYear: Number(currentYear),
+            currentSemester: Number(currentSemester),
+            batch,
+          });
+        } catch {}
+
+        toast.success(`Student ${cleanReg} modified and updated successfully!`);
+        setEditingStudent(null);
+      } else {
+        // Add new student
+        const newStudent = {
+          student_id: `custom_${Date.now()}`,
+          register_number: cleanReg,
           name,
           programme,
-          currentYear: Number(currentYear),
-          currentSemester: Number(currentSemester),
+          current_year: Number(currentYear),
+          current_semester: Number(currentSemester),
           batch,
-          admissionYear: 2024,
-        });
-      } catch {}
+        };
 
-      setLocalStudents(prev => [newStudent, ...prev]);
-      toast.success(`Student ${cleanReg} created with default password "123"!`);
-      setIsAddModalOpen(false);
+        try {
+          await api.post('/api/students', {
+            registerNumber: cleanReg,
+            name,
+            programme,
+            currentYear: Number(currentYear),
+            currentSemester: Number(currentSemester),
+            batch,
+            admissionYear: 2024,
+          });
+        } catch {}
+
+        setLocalStudents(prev => [newStudent, ...prev]);
+        toast.success(`Student ${cleanReg} created with default password "123"!`);
+        setIsAddModalOpen(false);
+      }
+    } finally {
+      setIsSaving(false);
+      setRegisterNumber('');
+      setName('');
+      qc.invalidateQueries({ queryKey: ['students-list'] });
     }
-
-    setRegisterNumber('');
-    setName('');
-    qc.invalidateQueries({ queryKey: ['students-list'] });
   };
 
   const deleteStudent = (studentId: string, regNo: string) => {
@@ -461,9 +481,10 @@ export const StudentsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary text-xs"
+                  disabled={isSaving}
+                  className="btn-primary text-xs disabled:opacity-50"
                 >
-                  {editingStudent ? 'Save Changes' : 'Create Student'}
+                  {isSaving ? 'Saving...' : editingStudent ? 'Save Changes' : 'Create Student'}
                 </button>
               </div>
             </form>

@@ -18,8 +18,10 @@ export const StaffPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [localStaff, setLocalStaff] = useState<any[]>([]);
+  const [editedStaffMap, setEditedStaffMap] = useState<Record<string, any>>({});
   const [deletedStaffIds, setDeletedStaffIds] = useState<Set<string>>(new Set());
 
   // New/Edit Staff Form State
@@ -43,7 +45,13 @@ export const StaffPage: React.FC = () => {
   });
 
   const apiStaff = data?.data || [];
-  const baseStaff = apiStaff.length > 0 ? apiStaff : [...localStaff, ...SEEDED_STAFF];
+  const rawStaff = apiStaff.length > 0 ? apiStaff : [...localStaff, ...SEEDED_STAFF];
+
+  // Merge edits directly on top of raw items so modifications ALWAYS stick!
+  const baseStaff = rawStaff.map(s => {
+    const key = s.staff_id || s.employee_id;
+    return editedStaffMap[key] || editedStaffMap[s.employee_id] || s;
+  });
 
   // Filter out deleted staff permanently
   const activeStaff = baseStaff.filter(s => !deletedStaffIds.has(s.staff_id) && !deletedStaffIds.has(s.employee_id));
@@ -62,6 +70,7 @@ export const StaffPage: React.FC = () => {
 
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
 
     const cleanEmp = employeeId.trim().toUpperCase();
 
@@ -76,51 +85,62 @@ export const StaffPage: React.FC = () => {
       }
     }
 
-    if (editingStaff) {
-      // Edit existing staff member
-      const updated = {
-        ...editingStaff,
-        employee_id: cleanEmp,
-        name,
-        email,
-        designation,
-      };
+    setIsSaving(true);
 
-      try {
-        await api.put(`/api/staff/${editingStaff.staff_id}`, {
-          employeeId: cleanEmp,
+    try {
+      if (editingStaff) {
+        // Edit existing staff member
+        const updated = {
+          ...editingStaff,
+          employee_id: cleanEmp,
           name,
           email,
           designation,
-        });
-      } catch {}
+        };
 
-      setLocalStaff(prev => prev.map(s => s.staff_id === editingStaff.staff_id ? updated : s));
-      toast.success(`Staff member ${cleanEmp} updated successfully!`);
-      setEditingStaff(null);
-    } else {
-      // Add new staff member
-      const newStaff = {
-        staff_id: `custom_st_${Date.now()}`,
-        employee_id: cleanEmp,
-        name,
-        email: email || `${cleanEmp.toLowerCase()}@erp.local`,
-        designation,
-      };
+        const key = editingStaff.staff_id || editingStaff.employee_id;
+        setEditedStaffMap(prev => ({
+          ...prev,
+          [key]: updated,
+          [cleanEmp]: updated,
+        }));
 
-      try {
-        await api.post('/api/staff', { employeeId: cleanEmp, name, email: newStaff.email, designation });
-      } catch {}
+        try {
+          await api.put(`/api/staff/${editingStaff.staff_id}`, {
+            employeeId: cleanEmp,
+            name,
+            email,
+            designation,
+          });
+        } catch {}
 
-      setLocalStaff(prev => [newStaff, ...prev]);
-      toast.success(`Staff member ${cleanEmp} added with default password "123"!`);
-      setIsAddModalOpen(false);
+        toast.success(`Staff member ${cleanEmp} modified and updated successfully!`);
+        setEditingStaff(null);
+      } else {
+        // Add new staff member
+        const newStaff = {
+          staff_id: `custom_st_${Date.now()}`,
+          employee_id: cleanEmp,
+          name,
+          email: email || `${cleanEmp.toLowerCase()}@erp.local`,
+          designation,
+        };
+
+        try {
+          await api.post('/api/staff', { employeeId: cleanEmp, name, email: newStaff.email, designation });
+        } catch {}
+
+        setLocalStaff(prev => [newStaff, ...prev]);
+        toast.success(`Staff member ${cleanEmp} added with default password "123"!`);
+        setIsAddModalOpen(false);
+      }
+    } finally {
+      setIsSaving(false);
+      setEmployeeId('');
+      setName('');
+      setEmail('');
+      qc.invalidateQueries({ queryKey: ['staff-list'] });
     }
-
-    setEmployeeId('');
-    setName('');
-    setEmail('');
-    qc.invalidateQueries({ queryKey: ['staff-list'] });
   };
 
   const deleteStaff = (staffId: string, empId: string) => {
@@ -383,9 +403,10 @@ export const StaffPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary text-xs"
+                  disabled={isSaving}
+                  className="btn-primary text-xs disabled:opacity-50"
                 >
-                  {editingStaff ? 'Save Changes' : 'Create Staff Member'}
+                  {isSaving ? 'Saving...' : editingStaff ? 'Save Changes' : 'Create Staff Member'}
                 </button>
               </div>
             </form>
